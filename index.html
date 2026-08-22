@@ -115,6 +115,14 @@
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
         }
+
+        /* OBS / streaming overlay output: a chrome-free, transparent timer suitable
+           as a browser-source layer. JS keeps overwriting body/#prompterView's
+           className every tick (for the flash/color states), so a marker on <html>
+           with !important is the only reliable way to keep them see-through. */
+        html.obs-mode body, html.obs-mode #prompterView, html.obs-mode #panelTimer { background: transparent !important; }
+        html.obs-mode #prompterHeader { display: none !important; }
+        html.obs-mode .bg-alert-flash { animation: none !important; background: transparent !important; }
     </style>
 </head>
 <body id="mainBody" class="bg-gray-950 text-white font-sans min-h-screen selection:bg-blue-500 transition-colors duration-300 overflow-x-hidden">
@@ -336,6 +344,7 @@
             <div class="flex items-center gap-2">
                 <button onclick="goBack()" class="px-2.5 py-1 bg-gray-900/90 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold transition border border-gray-800 shadow active:scale-95 cursor-pointer">← Exit</button>
                 <span id="prompterConnBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-700">🟢 Connecting to DB...</span>
+                <span id="speakerModeBadge" class="hidden text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-700 font-bold uppercase">🎤 Speaker Monitor</span>
             </div>
 
             <div class="flex items-center gap-2">
@@ -410,12 +419,18 @@
             </div>
 
             <!-- Tabs -->
-            <div class="flex bg-[#141414] border-b border-gray-800 px-4 sm:px-6 gap-2">
-                <button onclick="switchShareTab('operator')" id="tab_operator" class="px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer">
+            <div class="flex bg-[#141414] border-b border-gray-800 px-2 sm:px-6 gap-1 sm:gap-2 overflow-x-auto prompter-scroll" role="tablist" aria-label="Output link type">
+                <button onclick="switchShareTab('operator')" id="tab_operator" role="tab" class="px-3 sm:px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer whitespace-nowrap">
                     <span class="text-xl">💻</span><span class="text-xs font-bold uppercase tracking-wider">Controller</span>
                 </button>
-                <button onclick="switchShareTab('viewer')" id="tab_viewer" class="px-4 py-3 flex flex-col items-center gap-1 tab-btn-active cursor-pointer">
-                    <span class="text-xl">📺</span><span class="text-xs font-bold uppercase tracking-wider">Viewer</span>
+                <button onclick="switchShareTab('stage')" id="tab_stage" role="tab" class="px-3 sm:px-4 py-3 flex flex-col items-center gap-1 tab-btn-active cursor-pointer whitespace-nowrap">
+                    <span class="text-xl">📺</span><span class="text-xs font-bold uppercase tracking-wider">Stage Display</span>
+                </button>
+                <button onclick="switchShareTab('speaker')" id="tab_speaker" role="tab" class="px-3 sm:px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer whitespace-nowrap">
+                    <span class="text-xl">🎤</span><span class="text-xs font-bold uppercase tracking-wider">Speaker Monitor</span>
+                </button>
+                <button onclick="switchShareTab('obs')" id="tab_obs" role="tab" class="px-3 sm:px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer whitespace-nowrap">
+                    <span class="text-xl">🎬</span><span class="text-xs font-bold uppercase tracking-wider">OBS / Stream</span>
                 </button>
             </div>
 
@@ -595,6 +610,11 @@
         // --- GLOBAL APP STATE ---
         let myRoomCode = "";
         let myRole = "viewer";
+        // Which output link this browser tab opened as: null (default stage display),
+        // 'speaker' (confidence monitor) or 'obs' (transparent stream overlay). This is
+        // deliberately NOT synced through Firebase — it describes what THIS physical
+        // screen is for, so two monitors in the same room can show different things.
+        let localOutputView = null;
         let myPresenceRef = null;
         let dragSrcIndex = null;
         let lastSeenMsgId = null;
@@ -730,35 +750,61 @@
             });
         });
 
-        // --- NEW SHARE LINKS MODAL LOGIC ---
+        // --- OUTPUT LINKS: four distinct link types for four distinct destinations,
+        // modeled on how stagetimer.io splits its output links — a controller for
+        // operators, a public stage display, a speaker's own confidence monitor
+        // (which must keep showing the timer+notes no matter what the big public
+        // screen is doing), and a transparent OBS/vMix streaming overlay.
+        const OUTPUT_LINK_TYPES = {
+            operator: {
+                icon: '💻', title: 'Controller Link',
+                desc: 'Complete access to manage timers, rundown, and screen shares.',
+                params: { role: 'operator' }
+            },
+            stage: {
+                icon: '📺', title: 'Stage Display Link',
+                desc: 'The main audience-facing screen. Follows whatever layout the operator sets in Layout Manager.',
+                params: { role: 'prompter' }
+            },
+            speaker: {
+                icon: '🎤', title: 'Speaker Monitor Link',
+                desc: "The presenter's own confidence monitor: always shows the timer and their notes, even if the public stage display is set to Screen Only.",
+                params: { role: 'prompter', view: 'speaker' }
+            },
+            obs: {
+                icon: '🎬', title: 'OBS / Stream Overlay Link',
+                desc: 'Transparent, chrome-free timer for a browser-source layer in OBS, vMix, or similar streaming software.',
+                params: { role: 'prompter', view: 'obs' }
+            }
+        };
+
         function openShareModal() {
             document.getElementById('shareLinksModal').classList.remove('hidden');
-            switchShareTab('viewer');
+            switchShareTab('stage');
         }
 
         function switchShareTab(tab) {
+            const def = OUTPUT_LINK_TYPES[tab];
+            if (!def) return;
             const urlBase = window.location.origin + window.location.pathname + '?room=' + (myRoomCode || 'DEMO');
             const input = document.getElementById('shareUrlInput');
             const title = document.getElementById('shareTabTitle');
             const desc = document.getElementById('shareTabDesc');
             const icon = document.getElementById('sharePreviewIcon');
 
-            document.getElementById('tab_operator').className = "px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer";
-            document.getElementById('tab_viewer').className = "px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer";
+            Object.keys(OUTPUT_LINK_TYPES).forEach(key => {
+                const btn = document.getElementById('tab_' + key);
+                if (btn) {
+                    btn.className = "px-3 sm:px-4 py-3 flex flex-col items-center gap-1 whitespace-nowrap cursor-pointer " + (key === tab ? "tab-btn-active" : "tab-btn-inactive");
+                    btn.setAttribute('aria-selected', key === tab ? 'true' : 'false');
+                }
+            });
 
-            document.getElementById('tab_' + tab).className = "px-4 py-3 flex flex-col items-center gap-1 tab-btn-active cursor-pointer";
-
-            if(tab === 'operator') {
-                input.value = urlBase + '&role=operator';
-                title.innerText = "Controller Link";
-                desc.innerText = "Complete access to manage timers, rundown, and screen shares.";
-                icon.innerText = "💻";
-            } else {
-                input.value = urlBase + '&role=prompter';
-                title.innerText = "Viewer Link";
-                desc.innerText = "Clean, full-screen stage display for the talent on stage.";
-                icon.innerText = "📺";
-            }
+            const query = new URLSearchParams(def.params).toString();
+            input.value = urlBase + '&' + query;
+            title.innerText = def.title;
+            desc.innerText = def.desc;
+            icon.innerText = def.icon;
 
             document.getElementById('shareQrContainer').classList.add('hidden');
         }
@@ -1877,7 +1923,13 @@
         function toggleSwapOrder() { pushStateUpdate({ layoutState: { ...globalState.layoutState, swapped: !globalState.layoutState.swapped }}); }
 
         function applyLayoutStateUI() {
-            const ls = globalState.layoutState || {};
+            // A speaker's confidence monitor and an OBS overlay link ignore whatever
+            // layout the operator picked for the public stage display: the speaker
+            // always needs their timer+notes, and OBS always wants just the timer.
+            let ls = globalState.layoutState || {};
+            if (localOutputView === 'speaker') ls = { ...ls, preset: 'timer_notes', swapped: false };
+            else if (localOutputView === 'obs') ls = { ...ls, preset: 'timer_only' };
+
             const container = document.getElementById('prompterMainLayout');
             const panelTimer = document.getElementById('panelTimer');
             const panelRight = document.getElementById('panelRight');
@@ -1898,6 +1950,10 @@
             if(panelRight) panelRight.className = "flex flex-col flex-1 items-stretch justify-between overflow-hidden h-full w-full";
             if(resizerH) resizerH.className = "resizer-h items-center justify-center select-none z-50";
             if(resizerV) resizerV.className = "resizer-v items-center justify-center select-none my-1 z-50";
+            // resizerV's default "hidden" class was just stripped above; only the
+            // 'all_three' branch below turns it back on, so every other preset
+            // needs it re-hidden here or it renders as a stray 12px bar.
+            if(resizerV) resizerV.style.display = 'none';
 
             const ratio = (ls.leftWidthPct >= 20 && ls.leftWidthPct <= 80) ? ls.leftWidthPct : 50;
 
@@ -2399,8 +2455,16 @@
                 myRoomCode = codeOverride || sanitizeRoomCode(codeInput);
                 document.getElementById('joinRoomInput').value = myRoomCode;
                 document.getElementById('mainBody').className = "bg-black text-white font-sans min-h-screen overflow-hidden";
+                applyOutputViewChrome();
                 initFirebaseRoom(myRoomCode, 'viewer');
             }
+        }
+
+        // Applies the one-time, non-synced chrome for this browser tab's output type.
+        function applyOutputViewChrome() {
+            document.documentElement.classList.toggle('obs-mode', localOutputView === 'obs');
+            const badge = document.getElementById('speakerModeBadge');
+            if (badge) badge.classList.toggle('hidden', localOutputView !== 'speaker');
         }
 
         function joinRoomFromInput() {
@@ -2422,6 +2486,9 @@
                 window.history.replaceState(null, '', window.location.pathname);
             } catch (e) {}
 
+            localOutputView = null;
+            document.documentElement.classList.remove('obs-mode');
+
             document.getElementById('operatorView').classList.add('hidden');
             document.getElementById('prompterView').classList.add('hidden');
             document.getElementById('menuView').classList.remove('hidden');
@@ -2442,6 +2509,8 @@
             const urlParams = new URLSearchParams(window.location.search);
             const roomParam = urlParams.get('room');
             const roleParam = urlParams.get('role');
+            const viewParam = urlParams.get('view');
+            if (viewParam === 'speaker' || viewParam === 'obs') localOutputView = viewParam;
 
             if (window.location.hash === '#prompter' && !roleParam) {
                 if (roomParam) document.getElementById('joinRoomInput').value = sanitizeRoomCode(roomParam);
