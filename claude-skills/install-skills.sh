@@ -13,6 +13,7 @@ ANTHROPIC_SKILLS_SHA="dbd4588f9e1033efb41dad4bef2f7947c8993d44"   # anthropics/s
 IMPECCABLE_SHA="3671d50f0ac9a662ce0615e85a256110c9cd720b"         # pbakaus/impeccable
 OPEN_DESIGN_SHA="9724c44142ea0afaee3d207f37901b31c66a44ad"        # nexu-io/open-design
 SKILLUI_VERSION="1.3.4"                                            # npm: skillui
+PLAYWRIGHT_CLI_VERSION="0.1.22"                                    # npm: @playwright/cli
 
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 SKILLS_DIR="$CLAUDE_DIR/skills"
@@ -52,11 +53,21 @@ remove_managed() {
 
 if [ "$UNINSTALL" = 1 ]; then
     remove_managed
-    log "Removed the design skills. (skillui stays installed; remove it with: npm uninstall -g skillui)"
+    log "Removed the design skills. (the CLIs stay installed; remove them with: npm uninstall -g skillui @playwright/cli)"
     exit 0
 fi
 
-WANT="$ANTHROPIC_SKILLS_SHA $IMPECCABLE_SHA $OPEN_DESIGN_SHA $SKILLUI_VERSION od=$WITH_OPEN_DESIGN $(cksum < "$SCRIPT_DIR/skillui/SKILL.md")"
+# Claude Code cloud containers have Playwright's Chromium but no Google Chrome, which playwright-cli
+# defaults to. When run from a SessionStart hook, point it at that Chromium for the whole session.
+CLOUD_CHROMIUM="/opt/pw-browsers/chromium"
+if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -x "$CLOUD_CHROMIUM" ] && [ ! -x /opt/google/chrome/chrome ]; then
+    {
+        echo "export PLAYWRIGHT_MCP_BROWSER=chromium"
+        echo "export PLAYWRIGHT_MCP_EXECUTABLE_PATH=$(readlink -f "$CLOUD_CHROMIUM")"
+    } >> "$CLAUDE_ENV_FILE"
+fi
+
+WANT="$ANTHROPIC_SKILLS_SHA $IMPECCABLE_SHA $OPEN_DESIGN_SHA $SKILLUI_VERSION $PLAYWRIGHT_CLI_VERSION od=$WITH_OPEN_DESIGN $(cksum < "$SCRIPT_DIR/skillui/SKILL.md")"
 if [ "$FORCE" = 0 ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$WANT" ]; then
     log "Design skills are already up to date in $SKILLS_DIR"
     exit 0
@@ -121,21 +132,40 @@ if [ "$WITH_OPEN_DESIGN" = 1 ]; then
 fi
 chmod +x "$SKILLS_DIR/impeccable/scripts/impeccable" 2>/dev/null || true
 
-mv "$MANIFEST.new" "$MANIFEST"
-echo "$WANT" > "$STAMP"
+# npm_global <package> <version> <command>: installs a CLI globally unless that version is already present.
+npm_global() {
+    if [ "$("$3" --version 2>/dev/null || true)" = "$2" ]; then
+        return 0
+    fi
+    if npm install -g --silent "$1@$2" >/dev/null 2>&1; then
+        log "Installed the $3 CLI $2."
+    else
+        warn "couldn't install $1 globally (try: sudo npm install -g $1@$2)."
+        return 1
+    fi
+}
 
-# The skillui skill falls back to npx, so a failed global install is not fatal.
 if command -v npm >/dev/null; then
-    if [ "$(skillui --version 2>/dev/null || true)" != "$SKILLUI_VERSION" ]; then
-        if npm install -g --silent "skillui@$SKILLUI_VERSION" >/dev/null 2>&1; then
-            log "Installed the skillui CLI $SKILLUI_VERSION."
+    # The skillui skill falls back to npx, so a failed global install is not fatal.
+    npm_global skillui "$SKILLUI_VERSION" skillui || true
+
+    # Playwright CLI ships its own skill; let it write the skill so it matches the CLI version.
+    if npm_global @playwright/cli "$PLAYWRIGHT_CLI_VERSION" playwright-cli; then
+        pw_skill="$SKILLS_DIR/playwright-cli"
+        pw_existed=0
+        [ -e "$pw_skill" ] && pw_existed=1
+        if (cd "$HOME" && playwright-cli install --skills -g >/dev/null 2>&1) && [ -f "$pw_skill/SKILL.md" ]; then
+            [ "$pw_existed" = 0 ] && { echo "$pw_skill" >> "$MANIFEST.new"; installed=$((installed + 1)); }
         else
-            warn "couldn't install skillui globally (try: sudo npm install -g skillui@$SKILLUI_VERSION). The skill will use npx instead."
+            warn "couldn't install the playwright-cli skill (run: playwright-cli install --skills -g)."
         fi
     fi
 else
-    warn "npm not found. Install Node.js 18+ to use the skillui CLI."
+    warn "npm not found. Install Node.js 18+ for the skillui and playwright-cli CLIs."
 fi
+
+mv "$MANIFEST.new" "$MANIFEST"
+echo "$WANT" > "$STAMP"
 
 log "Installed $installed skills/agents into $CLAUDE_DIR ($duplicates duplicate names skipped; the first source wins)."
 if [ "${#skipped[@]}" -gt 0 ]; then
