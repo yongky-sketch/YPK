@@ -24,7 +24,7 @@ Restart Claude Code afterwards. Run the same command again later to update; it d
 Requirements: `git` and `bash` (macOS, Linux, or WSL on Windows). The SkillUI and Playwright CLIs also need Node.js 18+. If the global SkillUI install fails, its skill falls back to `npx`. Playwright CLI uses Google Chrome by default; if Chrome isn't installed, run `playwright-cli install-browser`.
 
 Options:
-- `--no-open-design`: install only the first three tools. Use this if the long skill list is too much noise.
+- `--no-open-design`: skip the Open Design pack and install only the first four tools. Use this if the long skill list is too much noise.
 - `--force`: reinstall even if already up to date.
 - `--uninstall`: remove everything this script installed. It never touches skills you added yourself. The `skillui` and `playwright-cli` commands stay installed; remove them with `npm uninstall -g skillui @playwright/cli`.
 
