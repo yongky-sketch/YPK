@@ -1,0 +1,2535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YPK Stage Control Pro</title>
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g1' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%230284c7'/><stop offset='50%' stop-color='%236366f1'/><stop offset='100%' stop-color='%23a855f7'/></linearGradient><filter id='f' x='-20%' y='-20%' width='140%' height='140%'><feDropShadow dx='0' dy='4' stdDeviation='6' flood-color='%236366f1' flood-opacity='0.6'/></filter></defs><rect width='100' height='100' rx='24' fill='%230f172a'/><path d='M20 25 L50 10 L80 25 L80 75 L50 90 L20 75 Z' fill='none' stroke='url(%23g1)' stroke-width='4' filter='url(%23f)'/><text x='50' y='62' font-family='system-ui, -apple-system, sans-serif' font-weight='900' font-size='34' fill='%23ffffff' text-anchor='middle' letter-spacing='1'>YPK</text></svg>">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+    <!-- FIREBASE V8 SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <!-- FIREBASE CONFIGURATION -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyD2ef7ZmO4X5-lxU-jDsueOyNKj5w1W-P0",
+            authDomain: "ypk-stage-tools.firebaseapp.com",
+            databaseURL: "https://ypk-stage-tools-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ypk-stage-tools",
+            storageBucket: "ypk-stage-tools.firebasestorage.app",
+            messagingSenderId: "853931602941",
+            appId: "1:853931602941:web:d3bad03661a9e35a4cdf94"
+        };
+
+        let db = null;
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.database();
+            console.log("🔥 Firebase initialized successfully.");
+        } catch (error) {
+            console.error("🔥 Firebase init error:", error);
+        }
+    </script>
+
+    <style>
+        .timer-text { transition: color 0.3s ease, font-size 0.2s ease, filter 0.3s ease; will-change: transform, color, filter; transform: translateZ(0); }
+        .bg-alert-flash { animation: intenseFlash 1s infinite; }
+        @keyframes intenseFlash { 0%, 100% { background-color: #000000; } 50% { background-color: #7f1d1d; } }
+        .text-alert-flash { animation: textFlash 1s infinite; }
+        @keyframes textFlash { 0%, 100% { color: #ef4444; filter: drop-shadow(0 0 80px rgba(239, 68, 68, 1)); } 50% { color: #ffffff; filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.5)); } }
+        .popup-bounce { animation: popIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards; }
+        @keyframes popIn { 0% { transform: scale(0.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        tr.draggable-row { transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease; }
+        tr.draggable-row:hover { transform: translateY(-1px); }
+        tr.dragging { opacity: 0.5 !important; transform: scale(0.98) !important; background-color: #1e3a8a !important; border: 2px dashed #60a5fa; }
+        tr.drag-over-target { transform: scale(1.01) translateY(2px) !important; background-color: #1e40af !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); border-top: 2px solid #60a5fa !important; border-bottom: 2px solid #60a5fa !important; }
+
+        .dropzone-active { border-color: #6366f1 !important; background-color: rgba(99, 102, 241, 0.15) !important; transform: scale(1.01); box-shadow: 0 0 25px rgba(99, 102, 241, 0.3); }
+        .prompter-scroll::-webkit-scrollbar { width: 8px; }
+        .prompter-scroll::-webkit-scrollbar-track { background: #090d16; }
+        .prompter-scroll::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 4px; }
+        .resizer-h { cursor: col-resize; width: 12px; background: #1e293b; transition: background 0.2s; will-change: transform; z-index: 50; touch-action: none; }
+        .resizer-h:hover, .resizer-h:active { background: #6366f1; box-shadow: 0 0 12px rgba(99, 102, 241, 0.8); }
+        .resizer-v { cursor: row-resize; height: 12px; background: #1e293b; transition: background 0.2s; will-change: transform; z-index: 50; touch-action: none; }
+        .resizer-v:hover, .resizer-v:active { background: #6366f1; box-shadow: 0 0 12px rgba(99, 102, 241, 0.8); }
+        .layout-card-active { border-color: #6366f1 !important; background-color: rgba(99, 102, 241, 0.25) !important; box-shadow: 0 0 15px rgba(99, 102, 241, 0.5); }
+
+        button, select, input, textarea { touch-action: manipulation; }
+        button:active { transform: scale(0.96); }
+        #prompterHeader { transition: opacity 0.3s ease-in-out; }
+
+        .video-crop-viewport { position: relative; width: 100%; height: 100%; flex: 1; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; }
+        .video-crop-element { position: absolute; object-fit: fill; transform-origin: top left; transition: all 0.1s ease-out; will-change: width, height, left, top; }
+
+        .operator-panel { background: #111827; border: 1px solid #1f2937; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
+
+        /* Output Links Specific Styles */
+        .tab-btn-active { border-bottom: 2px solid #3b82f6; color: #ffffff; background: rgba(59,130,246,0.1); }
+        .tab-btn-inactive { border-bottom: 2px solid transparent; color: #9ca3af; }
+        .tab-btn-inactive:hover { color: #f3f4f6; }
+
+        /* --- UI/UX Pro Max additions: toasts, modal motion, a11y, micro-interactions --- */
+        :focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; border-radius: 4px; }
+
+        #toastStack { position: fixed; top: 1rem; right: 1rem; z-index: 2000; display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none; max-width: min(92vw, 360px); }
+        .toast-item { pointer-events: auto; display: flex; align-items: flex-start; gap: 0.6rem; background: #111827; border: 1px solid #374151; border-left: 4px solid #6366f1; color: #f3f4f6; padding: 0.7rem 0.9rem; border-radius: 0.75rem; box-shadow: 0 12px 30px -8px rgba(0,0,0,0.6); font-size: 0.75rem; font-weight: 600; animation: toastIn 0.28s cubic-bezier(0.16,1,0.3,1) forwards; }
+        .toast-item.toast-success { border-left-color: #10b981; }
+        .toast-item.toast-error { border-left-color: #ef4444; }
+        .toast-item.toast-warn { border-left-color: #f59e0b; }
+        .toast-item.toast-out { animation: toastOut 0.22s ease-in forwards; }
+        @keyframes toastIn { 0% { opacity: 0; transform: translateX(24px) scale(0.96); } 100% { opacity: 1; transform: translateX(0) scale(1); } }
+        @keyframes toastOut { 0% { opacity: 1; transform: translateX(0) scale(1); } 100% { opacity: 0; transform: translateX(24px) scale(0.96); } }
+
+        .modal-panel-anim { animation: modalPanelIn 0.28s cubic-bezier(0.16,1,0.3,1) forwards; }
+        @keyframes modalPanelIn { 0% { opacity: 0; transform: scale(0.94) translateY(8px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        [id$="Modal"] { animation: modalBackdropIn 0.18s ease-out forwards; }
+        @keyframes modalBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+
+        .fade-slide-in { animation: fadeSlideIn 0.45s cubic-bezier(0.16,1,0.3,1) both; }
+        @keyframes fadeSlideIn { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+
+        .row-fade-in { animation: rowFadeIn 0.3s ease-out both; }
+        @keyframes rowFadeIn { 0% { opacity: 0; transform: translateY(-4px); } 100% { opacity: 1; transform: translateY(0); } }
+
+        .btn-ripple { position: relative; overflow: hidden; }
+        .btn-ripple span.ripple-fx { position: absolute; border-radius: 9999px; background: rgba(255,255,255,0.45); transform: scale(0); animation: rippleFx 0.55s ease-out forwards; pointer-events: none; }
+        @keyframes rippleFx { to { transform: scale(2.6); opacity: 0; } }
+
+        .skeleton-shimmer { background: linear-gradient(90deg, #1f2937 25%, #2b3446 37%, #1f2937 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+        @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+        .copy-check { animation: copyPop 0.4s cubic-bezier(0.68,-0.55,0.265,1.55); }
+        @keyframes copyPop { 0% { transform: scale(0.6); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+        }
+
+        /* OBS / streaming overlay output: a chrome-free, transparent timer suitable
+           as a browser-source layer. JS keeps overwriting body/#prompterView's
+           className every tick (for the flash/color states), so a marker on <html>
+           with !important is the only reliable way to keep them see-through. */
+        html.obs-mode body, html.obs-mode #prompterView, html.obs-mode #panelTimer { background: transparent !important; }
+        html.obs-mode #prompterHeader { display: none !important; }
+        html.obs-mode .bg-alert-flash { animation: none !important; background: transparent !important; }
+    </style>
+</head>
+<body id="mainBody" class="bg-gray-950 text-white font-sans min-h-screen selection:bg-blue-500 transition-colors duration-300 overflow-x-hidden">
+
+    <div id="httpWarningBanner" class="hidden bg-amber-600 text-black font-bold p-2 text-center text-xs sm:text-sm z-[200] relative">
+        ⚠️ Screen Sharing requires HTTPS. You are currently on HTTP. Please switch to <a id="httpsRedirectLink" href="#" class="underline font-extrabold">HTTPS</a> to enable Screen Share.
+    </div>
+
+    <div id="toastStack" aria-live="polite" aria-atomic="false"></div>
+
+    <canvas id="pipCanvas" width="480" height="240" class="hidden"></canvas>
+    <video id="pipVideo" autoplay muted playsinline class="hidden"></video>
+
+    <!-- 1. MENU SCREEN -->
+    <div id="menuView" class="flex flex-col items-center justify-center min-h-screen p-4 sm:p-6 text-white bg-gray-950">
+        <div class="flex items-center gap-3 mb-2 fade-slide-in">
+            <div class="relative w-12 h-12 bg-gray-900 border-2 border-indigo-500/80 rounded-2xl flex items-center justify-center font-black text-white text-xl shadow-[0_0_20px_rgba(99,102,241,0.5)] overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-tr from-sky-500/20 via-indigo-500/20 to-purple-500/20"></div>
+                <span class="relative bg-gradient-to-r from-sky-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent font-extrabold tracking-wider">YPK</span>
+            </div>
+            <h1 class="text-2xl sm:text-4xl font-bold text-white text-center">Stage Control System</h1>
+        </div>
+        <p class="mb-6 sm:mb-8 text-xs sm:text-sm text-gray-400 text-center fade-slide-in" style="animation-delay:60ms">Firebase Cloud Sync & Zero-Latency Media Engine Pro</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 max-w-4xl w-full">
+            <div class="operator-panel p-5 sm:p-8 flex flex-col items-center text-center fade-slide-in transition-transform hover:-translate-y-0.5" style="animation-delay:120ms">
+                <div class="p-3 sm:p-4 bg-blue-600/20 text-blue-400 rounded-full text-3xl sm:text-4xl mb-3 sm:mb-4">💻</div>
+                <h2 class="text-xl sm:text-2xl font-bold mb-1 text-white">Operator Dashboard</h2>
+                <p class="text-xs text-gray-400 mb-4">Start as Primary Host or join as Co-Operator safely over Firebase.</p>
+
+                <div class="w-full flex flex-col gap-2 mb-2">
+                    <div class="flex gap-2">
+                        <label for="createRoomInput" class="sr-only">Room code</label>
+                        <input type="text" id="createRoomInput" placeholder="Code (e.g. 842103)" onkeydown="if(event.key==='Enter') startView('operator')" class="flex-1 p-3 bg-gray-900 border border-gray-600 rounded-xl text-center font-mono font-bold text-sm text-white focus:outline-none focus:border-blue-500 uppercase">
+                        <button onclick="autoGenerateRoomCode()" class="px-3 py-3 bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-xs rounded-xl transition active:scale-95 cursor-pointer whitespace-nowrap">⚡ Random</button>
+                    </div>
+                    <button onclick="startView('operator')" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-base shadow-lg transition active:scale-95 cursor-pointer">
+                        Launch / Join Operator Access
+                    </button>
+                    <button onclick="clearLocalHistory()" class="text-[11px] text-gray-400 hover:text-rose-400 underline mt-1 transition cursor-pointer">🧹 Clear Local History Cache</button>
+                </div>
+            </div>
+
+            <div class="operator-panel p-5 sm:p-8 flex flex-col items-center text-center fade-slide-in transition-transform hover:-translate-y-0.5" style="animation-delay:180ms">
+                <div class="p-3 sm:p-4 bg-emerald-600/20 text-emerald-400 rounded-full text-3xl sm:text-4xl mb-3 sm:mb-4">📺</div>
+                <h2 class="text-xl sm:text-2xl font-bold mb-1 text-white">Join Stage TV / Prompter</h2>
+                <p class="text-xs text-gray-400 mb-4">Connect to the operator's cloud room across any network globally.</p>
+
+                <div class="w-full flex flex-col gap-2 mb-2">
+                    <label for="joinRoomInput" class="sr-only">Sync code</label>
+                    <input type="text" id="joinRoomInput" placeholder="Sync Code (e.g. 842103)" onkeydown="if(event.key==='Enter') joinRoomFromInput()" class="w-full p-3 bg-gray-900 border border-gray-600 rounded-xl text-center font-mono font-bold text-base text-white focus:outline-none focus:border-emerald-500 uppercase">
+                    <button onclick="joinRoomFromInput()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition active:scale-95 cursor-pointer">
+                        Connect Display
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. OPERATOR DASHBOARD VIEW -->
+    <div id="operatorView" class="hidden p-3 sm:p-5 max-w-[100rem] mx-auto min-h-screen flex-col gap-4 text-gray-100">
+
+        <!-- Dashboard Top Nav -->
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-800 pb-3 gap-3">
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="goBack()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-semibold transition border border-gray-700 active:scale-95 cursor-pointer">← Exit</button>
+                <span id="operatorRoleBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 font-bold uppercase">Admin Connecting...</span>
+                <span id="connectedDevicesBadge" class="text-[10px] font-bold text-indigo-300 px-2 py-0.5 rounded bg-indigo-950 border border-indigo-700">👁️ 0 Displays</span>
+                <div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-950 border border-emerald-700">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-[10px] font-mono font-bold text-emerald-400" id="roomCodeDisplay">---</span>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="toggleFloatingPipTimer()" class="px-3 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/40 border border-yellow-600 text-yellow-500 font-bold text-xs rounded-lg transition active:scale-95 cursor-pointer flex items-center gap-1.5">
+                    📌 Floating Timer (PiP)
+                </button>
+                <button onclick="openShareModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition shadow active:scale-95 cursor-pointer flex items-center gap-1.5">
+                    🔗 Output Links
+                </button>
+                <button id="startShareBtn" onclick="startPresenterScreenShare()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-lg transition shadow active:scale-95 cursor-pointer">🖥️ Share Screen</button>
+                <button id="stopShareBtn" onclick="stopPresenterScreenShare()" class="hidden px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg transition shadow animate-pulse active:scale-95 cursor-pointer">🛑 Stop Share</button>
+                <button onclick="openModal('layoutModal')" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 font-bold text-xs rounded-lg transition active:scale-95 cursor-pointer">📐 Layout</button>
+                <button onclick="openModal('archivesModal')" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 font-bold text-xs rounded-lg transition active:scale-95 cursor-pointer">📜 Archives</button>
+                <button onclick="openModal('endEventModal')" class="px-3 py-1.5 bg-rose-900/40 hover:bg-rose-700 border border-rose-800 text-rose-300 hover:text-white font-bold text-xs rounded-lg transition active:scale-95 cursor-pointer">🔴 End Event</button>
+            </div>
+        </div>
+
+        <!-- STAGETIMER.IO STYLE MASTER CONTROL PANEL -->
+        <div class="operator-panel p-6 sm:p-8 flex flex-col items-center shadow-[0_0_40px_rgba(0,0,0,0.4)] border-t-4 border-t-blue-500 relative">
+            <div class="w-full flex flex-wrap items-center justify-between gap-2 mb-4 sm:mb-0 sm:contents">
+                <div class="flex items-center gap-1.5 bg-gray-900 border border-gray-700 px-2 py-1.5 rounded-lg sm:absolute sm:top-4 sm:left-4">
+                    <label for="minInput" class="text-[10px] text-gray-400 font-bold uppercase">Quick Timer</label>
+                    <input type="number" id="minInput" min="1" value="5" class="w-12 bg-gray-950 border border-gray-700 rounded text-xs text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500" aria-label="Quick custom timer minutes">
+                    <button onclick="startManualTimer()" class="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded transition active:scale-95 cursor-pointer" title="Start a custom countdown, independent of the agenda">▶ Start</button>
+                </div>
+                <div class="flex items-center gap-2 bg-gray-900 border border-gray-700 px-3 py-1.5 rounded-lg sm:absolute sm:top-4 sm:right-4">
+                    <span class="text-[10px] text-gray-400 font-bold uppercase">Master Clock</span>
+                    <span id="opStageClock" class="text-sm font-mono font-bold text-emerald-400">00:00</span>
+                </div>
+            </div>
+            <h2 id="ctrlTopic" class="text-blue-400 font-bold text-xl sm:text-2xl uppercase tracking-widest mb-1 text-center">Waiting to Start...</h2>
+            <h3 id="ctrlSpeaker" class="text-gray-400 font-medium text-sm sm:text-base mb-6 text-center">No active session</h3>
+
+            <div id="ctrlTimerDisplay" class="text-7xl sm:text-9xl font-black font-mono tracking-tighter text-white mb-8 drop-shadow-[0_0_20px_rgba(255,255,255,0.1)] leading-none select-none">00:00</div>
+
+            <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+                <button onclick="adjustActiveTimer(-1)" class="w-12 h-12 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-full text-white font-bold text-lg transition active:scale-95 cursor-pointer" title="Subtract 1 Minute">-1m</button>
+
+                <button id="btnCtrlPlay" onclick="resumeActiveTimer()" class="hidden px-8 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-full text-white font-black text-lg tracking-wider shadow-lg transition active:scale-95 cursor-pointer border-2 border-emerald-400">▶ RESUME</button>
+                <button id="btnCtrlPause" onclick="pauseActiveTimer()" class="px-8 py-3 bg-yellow-600 hover:bg-yellow-500 rounded-full text-white font-black text-lg tracking-wider shadow-lg transition active:scale-95 cursor-pointer border-2 border-yellow-400">⏸ PAUSE</button>
+                <button onclick="stopActiveTimer()" class="px-8 py-3 bg-red-600 hover:bg-red-500 rounded-full text-white font-black text-lg tracking-wider shadow-lg transition active:scale-95 cursor-pointer border-2 border-red-400">⏹ STOP</button>
+
+                <button onclick="adjustActiveTimer(1)" class="w-12 h-12 flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-full text-white font-bold text-lg transition active:scale-95 cursor-pointer" title="Add 1 Minute">+1m</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+            <!-- LEFT COLUMN: AGENDA -->
+            <div class="xl:col-span-2 flex flex-col gap-4">
+                <div class="operator-panel overflow-hidden">
+                    <div class="p-3 sm:p-4 bg-gray-900 border-b border-gray-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-sm sm:text-base text-white">📋 Live Rundown</h3>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="flex items-center gap-1.5 bg-gray-950 border border-gray-700 px-2 py-1 rounded">
+                                <span class="text-[10px] text-gray-400 font-bold uppercase">Start:</span>
+                                <input type="time" id="eventStartTime" value="09:00" onchange="recalculateCascadingTimes(0)" class="bg-transparent text-emerald-400 text-xs font-mono font-bold focus:outline-none cursor-pointer">
+                            </div>
+                            <button onclick="openModal('templateModal')" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-white text-[10px] font-bold rounded border border-gray-600 transition active:scale-95">💾 Templates</button>
+                            <button onclick="addNewRow()" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-white text-[10px] font-bold rounded border border-gray-600 transition active:scale-95">+ Add Row</button>
+                            <button onclick="document.getElementById('fileInput').click()" class="px-2.5 py-1 bg-blue-900/50 hover:bg-blue-800 text-blue-200 text-[10px] font-bold rounded border border-blue-700 transition active:scale-95">📥 Import</button>
+                            <input type="file" id="fileInput" accept=".xlsx, .csv, .json, .pptx" class="hidden" onchange="handleFileUpload(event)">
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto w-full max-h-[500px] prompter-scroll">
+                        <table class="w-full text-left border-collapse min-w-[700px]">
+                            <thead class="sticky top-0 bg-gray-900 z-10 shadow-sm">
+                                <tr class="text-[10px] text-gray-400 uppercase border-b border-gray-800">
+                                    <th class="p-2.5 text-center w-10">#</th>
+                                    <th class="p-2.5 w-24">Start</th>
+                                    <th class="p-2.5 w-16 text-center">Min</th>
+                                    <th class="p-2.5">Topic</th>
+                                    <th class="p-2.5 w-1/4">Speaker</th>
+                                    <th class="p-2.5 text-center w-36">Status</th>
+                                    <th class="p-2.5 text-center w-32">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="agendaTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SCREEN SHARE CROP PANEL (Conditional) -->
+                <div class="operator-panel p-4 flex flex-col gap-4 border-l-4 border-l-purple-500" id="videoControlsCard" style="display: none;">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                        <h4 class="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> Live GPU Screen Crop
+                        </h4>
+                        <div class="flex gap-1.5">
+                            <button onclick="setCropRegion(0, 0, 100, 100)" class="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-[10px] font-bold rounded border border-gray-600 transition text-white">Full</button>
+                            <button onclick="setCropRegion(0, 50, 100, 50)" class="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-[10px] font-bold rounded border border-gray-600 transition text-white">Btm</button>
+                            <button onclick="setCropRegion(0, 0, 100, 50)" class="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-[10px] font-bold rounded border border-gray-600 transition text-white">Top</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-4">
+                        <div class="flex-1 bg-black rounded-lg border border-gray-800 flex flex-col items-center justify-center relative overflow-hidden h-48">
+                            <div class="relative w-full h-full flex items-center justify-center">
+                                <video id="opPreviewVideoStream" autoplay playsinline muted class="max-w-full max-h-full object-contain"></video>
+                                <canvas id="interactiveCanvas" class="absolute inset-0 w-full h-full cursor-crosshair z-20"></canvas>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 flex flex-col gap-2 text-[10px] justify-center">
+                            <div><div class="flex justify-between text-gray-400"><span>Top Y:</span><span id="lblCropY">0%</span></div><input type="range" id="sliderCropY" min="0" max="80" value="0" oninput="updateCropFromSliders()" class="w-full accent-purple-500 h-1"></div>
+                            <div><div class="flex justify-between text-gray-400"><span>Left X:</span><span id="lblCropX">0%</span></div><input type="range" id="sliderCropX" min="0" max="80" value="0" oninput="updateCropFromSliders()" class="w-full accent-purple-500 h-1"></div>
+                            <div><div class="flex justify-between text-gray-400"><span>Height:</span><span id="lblCropH">100%</span></div><input type="range" id="sliderCropH" min="20" max="100" value="100" oninput="updateCropFromSliders()" class="w-full accent-purple-500 h-1"></div>
+                            <div><div class="flex justify-between text-gray-400"><span>Width:</span><span id="lblCropW">100%</span></div><input type="range" id="sliderCropW" min="20" max="100" value="100" oninput="updateCropFromSliders()" class="w-full accent-purple-500 h-1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: NOTES & MESSAGES -->
+            <div class="flex flex-col gap-4">
+                <div class="operator-panel p-4 flex flex-col gap-3">
+                    <h3 class="font-bold text-sm text-indigo-400 border-b border-gray-800 pb-2">🚨 Prompter Banner Alert</h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="msgInput" placeholder="e.g., Wrap it up!" onkeydown="if(event.key==='Enter') sendMessage()" class="flex-1 p-2 bg-gray-900 border border-gray-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500">
+                        <button onclick="sendMessage()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 font-bold rounded-lg text-xs transition active:scale-95 cursor-pointer">Send</button>
+                    </div>
+                </div>
+
+                <div class="operator-panel p-4 flex flex-col gap-3 flex-1">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                        <h3 class="font-bold text-sm text-purple-400">🎙️ Live Notes Sync</h3>
+                        <div class="flex items-center gap-1">
+                            <button onclick="prevSlide()" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[10px] font-bold rounded transition active:scale-95 cursor-pointer" aria-label="Previous slide note">◀</button>
+                            <span id="slideCounterBadge" class="text-[10px] font-mono text-gray-400 px-1">1/1</span>
+                            <button onclick="nextSlide()" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[10px] font-bold rounded transition active:scale-95 cursor-pointer" aria-label="Next slide note">▶</button>
+                        </div>
+                    </div>
+                    <textarea id="liveNotesInput" oninput="syncPrompterNotes(true)" placeholder="Extracted PPTX notes or manually typed notes separate by '---'..." class="w-full flex-1 min-h-[200px] bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs text-gray-200 focus:outline-none focus:border-purple-500 resize-y"></textarea>
+                    <div class="flex justify-between text-[10px] text-gray-500">
+                        <span><kbd class="bg-gray-800 px-1 rounded">PageDown</kbd> auto-advances.</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 3. STAGE PROMPTER VIEW -->
+    <div id="prompterView" onmousemove="handlePrompterMouseMove()" class="hidden flex flex-col justify-between h-screen min-h-screen bg-black w-full p-3 sm:p-5 relative overflow-hidden text-white select-none">
+        <div id="prompterHeader" class="w-full flex items-center justify-between z-50 pt-1 pb-2 border-b border-gray-900/80 bg-black/80 backdrop-blur-sm">
+            <div class="flex items-center gap-2">
+                <button onclick="goBack()" class="px-2.5 py-1 bg-gray-900/90 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold transition border border-gray-800 shadow active:scale-95 cursor-pointer">← Exit</button>
+                <span id="prompterConnBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-700">🟢 Connecting to DB...</span>
+                <span id="speakerModeBadge" class="hidden text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-700 font-bold uppercase">🎤 Speaker Monitor</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button onclick="toggleFullscreen()" class="px-2.5 py-1 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shadow transition active:scale-95 cursor-pointer">⛶ Fullscreen</button>
+                <div class="w-px h-4 bg-gray-800 mx-1"></div>
+                <button onclick="pushStateUpdate({fontSize: Math.max(16, globalState.fontSize - 4)})" class="px-2.5 py-1 bg-gray-900 border border-gray-700 rounded text-xs font-bold active:scale-95 cursor-pointer" aria-label="Decrease notes font size">A-</button>
+                <button onclick="pushStateUpdate({fontSize: Math.min(72, globalState.fontSize + 4)})" class="px-2.5 py-1 bg-gray-900 border border-gray-700 rounded text-xs font-bold active:scale-95 cursor-pointer" aria-label="Increase notes font size">A+</button>
+                <div class="w-px h-4 bg-gray-800 mx-1"></div>
+                <button onclick="pushStateUpdate({timerFontSize: Math.max(50, globalState.timerFontSize - 10)})" class="px-2.5 py-1 bg-gray-900 border border-gray-700 rounded text-xs font-bold active:scale-95 cursor-pointer" aria-label="Decrease timer font size">T-</button>
+                <button onclick="pushStateUpdate({timerFontSize: Math.min(200, globalState.timerFontSize + 10)})" class="px-2.5 py-1 bg-gray-900 border border-gray-700 rounded text-xs font-bold active:scale-95 cursor-pointer" aria-label="Increase timer font size">T+</button>
+                <div class="w-6 h-6 bg-gray-900 border border-indigo-500/80 rounded flex items-center justify-center font-black text-white text-[9px]">YPK</div>
+            </div>
+        </div>
+
+        <div id="prompterMainLayout" class="w-full flex-1 flex flex-col md:flex-row items-stretch justify-between my-auto pt-2 pb-2 overflow-hidden relative h-full">
+            <div id="panelTimer" class="flex flex-col items-center justify-center text-center p-2 transition-all relative w-full max-w-full overflow-hidden">
+                <div id="sessionInfo" class="text-center opacity-0 transition-opacity duration-500 max-w-full mb-1">
+                    <h2 id="prompterTopic" class="text-xl sm:text-3xl font-bold text-blue-400 mb-1 leading-tight break-words">Connecting...</h2>
+                    <h3 id="prompterSpeaker" class="text-sm sm:text-xl font-semibold text-gray-300 break-words"></h3>
+                </div>
+                <div id="messageBox" class="hidden mb-3 bg-red-600/95 text-white text-2xl sm:text-4xl md:text-6xl font-black py-3 sm:py-5 px-6 sm:px-12 rounded-3xl shadow-[0_0_100px_rgba(239,68,68,1)] border-4 border-white animate-pulse z-50 text-center max-w-[95%] backdrop-blur-md"></div>
+                <div id="timesUpPopup" class="hidden popup-bounce mb-3 bg-red-600 text-white text-3xl sm:text-5xl md:text-7xl font-black py-3 sm:py-5 px-8 sm:px-16 rounded-full shadow-[0_0_100px_rgba(239,68,68,1)] border-4 border-white uppercase tracking-widest text-center z-40 whitespace-nowrap animate-pulse">⚠️ TIME'S UP! ⚠️</div>
+                <div id="timerDisplay" class="text-[18vw] md:text-[18rem] font-bold tracking-tighter leading-none timer-text text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.2)] my-auto text-center select-none z-10 whitespace-nowrap max-w-full">00:00</div>
+            </div>
+
+            <div id="resizerH" class="resizer-h hidden md:flex items-center justify-center select-none"><span class="text-gray-600 text-xs">⋮</span></div>
+            <div id="resizerV" class="resizer-v hidden items-center justify-center select-none my-1"><span class="text-gray-600 text-xs">⋯</span></div>
+
+            <div id="panelRight" class="hidden flex flex-col flex-1 items-stretch justify-between overflow-hidden h-full w-full">
+                <div id="panelScreenShare" class="w-full flex-1 rounded-2xl border-2 border-emerald-500/50 bg-black overflow-hidden relative shadow-2xl flex flex-col items-center justify-center min-h-0">
+                    <div class="absolute top-2 left-2 bg-black/80 border border-emerald-500/50 px-2.5 py-1 rounded-full text-[9px] text-emerald-300 font-mono z-30 flex items-center gap-1.5 shadow">
+                        <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> Live Presentation Stream
+                    </div>
+
+                    <div class="video-crop-viewport">
+                        <video id="prompterVideoStream" autoplay playsinline muted class="video-crop-element hidden"></video>
+                    </div>
+
+                    <div id="noStreamPlaceholder" class="text-gray-500 text-xs font-mono z-10 flex flex-col items-center gap-2">
+                        <span class="text-2xl">📺</span>
+                        <span id="prompterStandbyText">Presenting Screen Feed Standby...</span>
+                        <button id="btnForcePlayVideo" onclick="forcePlayPrompterVideo()" class="hidden px-3 py-1 bg-emerald-600 text-white font-bold rounded-lg text-xs mt-2 cursor-pointer shadow">▶ Tap to Start Video</button>
+                    </div>
+                </div>
+
+                <div id="panelSpeakerNotes" class="w-full flex-1 rounded-2xl border-2 border-purple-500/50 bg-gray-950/90 p-4 sm:p-5 overflow-y-auto prompter-scroll shadow-2xl relative flex flex-col justify-between transition-all">
+                    <div>
+                        <div class="text-[10px] text-purple-400 uppercase font-bold tracking-widest mb-1 border-b border-gray-800 pb-1 flex justify-between">
+                            <span id="prompterSlideNumTag">🎙️ Speaker Notes (Slide 1)</span>
+                            <span id="notesStatusTag" class="text-gray-500 font-mono">Live Sync</span>
+                        </div>
+                        <div id="prompterNotesContent" class="text-2xl sm:text-3xl font-medium leading-relaxed text-gray-100 whitespace-pre-wrap">Notes will appear here...</div>
+                    </div>
+                    <div id="upNextSnippetBox" class="mt-3 pt-2 border-t border-gray-800/80">
+                        <span class="text-[9px] text-purple-400 uppercase font-bold block">🔮 Up Next Slide Snippet:</span>
+                        <p id="upNextSnippetContent" class="text-xs text-gray-400 truncate italic">End of presentation notes</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+
+    <!-- NEW SHARE LINKS MODAL -->
+    <div id="shareLinksModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+        <div class="bg-[#1e1e1e] rounded-xl border border-gray-700 max-w-3xl w-full flex flex-col overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 sm:px-6 bg-[#141414] border-b border-gray-800">
+                <h3 class="text-white font-bold flex items-center gap-2"><span class="text-xl">🔗</span> Output Links</h3>
+                <button onclick="closeModal('shareLinksModal')" class="text-gray-400 hover:text-white transition cursor-pointer font-bold text-lg leading-none p-1" aria-label="Close output links dialog">✕</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex bg-[#141414] border-b border-gray-800 px-2 sm:px-6 gap-1 sm:gap-2 overflow-x-auto prompter-scroll" role="tablist" aria-label="Output link type">
+                <button onclick="switchShareTab('operator')" id="tab_operator" role="tab" class="px-3 sm:px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer whitespace-nowrap">
+                    <span class="text-xl">💻</span><span class="text-xs font-bold uppercase tracking-wider">Controller</span>
+                </button>
+                <button onclick="switchShareTab('stage')" id="tab_stage" role="tab" class="px-3 sm:px-4 py-3 flex flex-col items-center gap-1 tab-btn-active cursor-pointer whitespace-nowrap">
+                    <span class="text-xl">📺</span><span class="text-xs font-bold uppercase tracking-wider">Stage Display</span>
+                </button>
+                <button onclick="switchShareTab('speaker')" id="tab_speaker" role="tab" class="px-3 sm:px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer whitespace-nowrap">
+                    <span class="text-xl">🎤</span><span class="text-xs font-bold uppercase tracking-wider">Speaker Monitor</span>
+                </button>
+                <button onclick="switchShareTab('obs')" id="tab_obs" role="tab" class="px-3 sm:px-4 py-3 flex flex-col items-center gap-1 tab-btn-inactive cursor-pointer whitespace-nowrap">
+                    <span class="text-xl">🎬</span><span class="text-xs font-bold uppercase tracking-wider">OBS / Stream</span>
+                </button>
+            </div>
+
+            <!-- Content Body -->
+            <div class="p-6 flex flex-col md:flex-row gap-8 bg-[#1e1e1e]">
+                <!-- Preview -->
+                <div class="flex-1">
+                    <h4 id="shareTabTitle" class="text-white font-bold text-lg mb-1">Viewer Link</h4>
+                    <p id="shareTabDesc" class="text-xs text-gray-400 mb-4 h-8">Clean, full-screen display of the active timer and layout for the talent.</p>
+
+                    <div class="w-full aspect-video bg-[#141414] rounded-lg border border-gray-700 flex flex-col items-center justify-center relative overflow-hidden shadow-inner" id="sharePreviewBox">
+                        <span class="text-5xl mb-2" id="sharePreviewIcon">📺</span>
+                        <div class="w-1/2 h-2 bg-blue-500 rounded-full opacity-50"></div>
+                        <div class="w-1/3 h-2 bg-emerald-500 rounded-full mt-2 opacity-50"></div>
+                    </div>
+                </div>
+
+                <!-- Options & Links -->
+                <div class="flex-1 flex flex-col justify-center">
+                    <label class="text-[10px] uppercase font-bold text-gray-500 block mb-2 tracking-wider">Direct Full Link</label>
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="shareUrlInput" readonly class="flex-1 bg-black border border-gray-700 rounded-lg p-3 text-xs text-blue-400 font-mono focus:outline-none focus:border-blue-500 shadow-inner">
+                        <button onclick="copyShareLink(this)" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-xs font-bold border border-gray-600 transition active:scale-95 cursor-pointer">📋 Copy</button>
+                    </div>
+
+                    <div class="flex justify-center gap-4 border-t border-gray-800 pt-4 mt-2">
+                        <button onclick="toggleShareQR()" class="text-xs text-gray-400 hover:text-white flex items-center gap-1.5 transition cursor-pointer font-bold">
+                            <span class="text-base">📱</span> Show QR
+                        </button>
+                        <button onclick="openShareLinkTarget()" class="text-xs text-gray-400 hover:text-white flex items-center gap-1.5 transition cursor-pointer font-bold">
+                            <span class="text-base">↗</span> Open Link
+                        </button>
+                    </div>
+
+                    <!-- QR Container (Hidden initially) -->
+                    <div id="shareQrContainer" class="hidden flex flex-col items-center mt-6">
+                        <div id="shareQrCode" class="bg-white p-2 rounded-lg shadow-lg"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE EVENT ARCHIVES MODAL -->
+    <div id="archivesModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+        <div class="bg-gray-800 p-5 sm:p-8 rounded-2xl border border-purple-500/60 max-w-3xl w-full flex flex-col gap-4 shadow-2xl max-h-[85vh] overflow-hidden">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+                <h3 class="text-lg font-bold text-purple-300 flex items-center gap-2">📜 Event History & Cloud Archives</h3>
+                <button onclick="closeModal('archivesModal')" class="text-gray-400 hover:text-white font-bold cursor-pointer text-lg leading-none p-1" aria-label="Close archives dialog">✕</button>
+            </div>
+            <p class="text-xs text-gray-300">Whenever an event is ended, a permanent historical log is archived below. You can reload past agendas, audit session variances, or export Excel reports.</p>
+
+            <div id="archivesListContainer" class="flex flex-col gap-2.5 overflow-y-auto prompter-scroll pr-1 flex-1 min-h-[200px]">
+                <p class="text-xs text-gray-500 italic text-center my-auto">Loading event archives from cloud...</p>
+            </div>
+
+            <div class="flex justify-end pt-2 border-t border-gray-700">
+                <button onclick="closeModal('archivesModal')" class="px-5 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold text-xs rounded-xl transition cursor-pointer">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DOUBLE AUTHENTICATION END EVENT MODAL -->
+    <div id="endEventModal" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-[999] flex items-center justify-center p-4">
+        <div class="bg-gray-800 p-6 sm:p-8 rounded-2xl border border-rose-500/60 max-w-md w-full flex flex-col gap-4 shadow-2xl text-center">
+            <div class="p-3 bg-rose-600/20 text-rose-400 rounded-full text-4xl w-16 h-16 flex items-center justify-center mx-auto mb-1">⚠️</div>
+            <h3 class="text-xl font-bold text-white">End Event & Wipe Database?</h3>
+            <p class="text-xs text-gray-300 leading-relaxed">
+                This will save a permanent historical log to Firebase Archives and stop all live Stage Prompter TVs.
+            </p>
+            <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 flex flex-col gap-2">
+                <label class="text-[10px] font-bold text-gray-400 uppercase text-left">Type Room Code <span id="confirmCodePlaceholder" class="text-rose-400 font-mono font-bold">---</span>:</label>
+                <input type="text" id="confirmEndRoomInput" oninput="checkEndRoomAuth()" placeholder="Type Code" class="p-2.5 bg-gray-800 border border-gray-600 rounded-lg text-sm text-center font-mono font-bold uppercase focus:outline-none focus:border-rose-500">
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeModal('endEventModal')" class="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 text-xs font-bold rounded-xl transition cursor-pointer">Cancel</button>
+                <button id="btnConfirmEndEvent" disabled onclick="executeEndEvent()" class="flex-1 py-2.5 bg-rose-600/40 text-gray-400 text-xs font-bold rounded-xl transition cursor-not-allowed">End Event Permanently</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEMPLATES MODAL -->
+    <div id="templateModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+        <div class="bg-gray-800 p-6 sm:p-8 rounded-2xl border border-indigo-500/60 max-w-xl w-full flex flex-col gap-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+                <h3 class="text-lg font-bold text-indigo-300">💾 Shared Template Database</h3>
+                <button onclick="closeModal('templateModal')" class="text-gray-400 hover:text-white font-bold cursor-pointer text-lg leading-none p-1" aria-label="Close templates dialog">✕</button>
+            </div>
+            <p class="text-xs text-gray-300">Templates are saved to Firebase and synced instantly to all operators in this room.</p>
+            <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 flex gap-2">
+                <input type="text" id="saveTemplateNameInput" placeholder="Template Name (e.g. Day 2 Morning)" class="flex-1 p-2 bg-gray-800 border border-gray-600 rounded-lg text-xs focus:outline-none focus:border-indigo-500">
+                <button onclick="saveCurrentTemplateToCloud()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition cursor-pointer">Save to Cloud</button>
+            </div>
+            <div class="text-xs font-bold text-gray-400 uppercase pt-2">Cloud Templates:</div>
+            <div id="savedTemplatesList" class="flex flex-col gap-2 max-h-60 overflow-y-auto prompter-scroll pr-1"></div>
+        </div>
+    </div>
+
+    <!-- VISUAL LAYOUT SELECTOR MODAL -->
+    <div id="layoutModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+        <div class="bg-gray-800 p-5 sm:p-8 rounded-2xl border border-indigo-500/60 max-w-2xl w-full flex flex-col gap-5 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+                <h3 class="text-base sm:text-lg font-bold text-indigo-300">📐 Stage TV Layout Manager</h3>
+                <button onclick="closeModal('layoutModal')" class="text-gray-400 hover:text-white font-bold cursor-pointer text-lg leading-none p-1" aria-label="Close layout manager dialog">✕</button>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                <div onclick="selectLayoutPreset('timer_only', 100, false)" id="layoutCard_timer_only" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer layout-card-active">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1">Timer Only</div>
+                    <div class="w-full h-10 bg-blue-900/60 border border-blue-700 rounded text-[7px] flex items-center justify-center">Timer</div>
+                </div>
+                <div onclick="selectLayoutPreset('notes_only', 100, false)" id="layoutCard_notes_only" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1">Notes Only</div>
+                    <div class="w-full h-10 bg-purple-900/60 border border-purple-700 rounded text-[7px] flex items-center justify-center">Notes</div>
+                </div>
+                <div onclick="selectLayoutPreset('screen_only', 100, false)" id="layoutCard_screen_only" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1">Screen Only</div>
+                    <div class="w-full h-10 bg-emerald-900/60 border border-emerald-700 rounded text-[7px] flex items-center justify-center">Screen</div>
+                </div>
+                <div onclick="selectLayoutPreset('timer_notes', 50, false)" id="layoutCard_timer_notes" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1">Split (L/R)</div>
+                    <div class="w-full h-10 flex gap-1"><div class="w-[50%] bg-blue-900/60 border border-blue-700 rounded text-[7px] flex items-center justify-center">Time</div><div class="w-[50%] bg-purple-900/60 border border-purple-700 rounded text-[7px] flex items-center justify-center">Notes</div></div>
+                </div>
+                <div onclick="selectLayoutPreset('screen_timer_v', 50, false)" id="layoutCard_screen_timer_v" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1">Screen Top / Timer Bottom</div>
+                    <div class="w-full h-10 flex flex-col gap-1"><div class="w-full h-[50%] bg-emerald-900/60 border border-emerald-700 rounded text-[6px] flex items-center justify-center">Screen</div><div class="w-full h-[50%] bg-blue-900/60 border border-blue-700 rounded text-[6px] flex items-center justify-center">Timer</div></div>
+                </div>
+                <div onclick="selectLayoutPreset('timer_screen_v', 50, false)" id="layoutCard_timer_screen_v" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1">Timer Top / Screen Bottom</div>
+                    <div class="w-full h-10 flex flex-col gap-1"><div class="w-full h-[50%] bg-blue-900/60 border border-blue-700 rounded text-[6px] flex items-center justify-center">Timer</div><div class="w-full h-[50%] bg-emerald-900/60 border border-emerald-700 rounded text-[6px] flex items-center justify-center">Screen</div></div>
+                </div>
+                <div onclick="selectLayoutPreset('split_v', 50, false)" id="layoutCard_split_v" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1">Time Top / Notes Bottom</div>
+                    <div class="w-full h-10 flex flex-col gap-1"><div class="w-full h-1/2 bg-blue-900/60 border border-blue-700 rounded text-[6px] flex items-center justify-center">Time</div><div class="w-full h-1/2 bg-purple-900/60 border border-purple-700 rounded text-[6px] flex items-center justify-center">Notes</div></div>
+                </div>
+                <div onclick="selectLayoutPreset('split_v_swap', 50, false)" id="layoutCard_split_v_swap" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1">Notes Top / Time Bottom</div>
+                    <div class="w-full h-10 flex flex-col gap-1"><div class="w-full h-1/2 bg-purple-900/60 border border-purple-700 rounded text-[6px] flex items-center justify-center">Notes</div><div class="w-full h-1/2 bg-blue-900/60 border border-blue-700 rounded text-[6px] flex items-center justify-center">Time</div></div>
+                </div>
+                <div onclick="selectLayoutPreset('all_three', 30, false)" id="layoutCard_all_three" class="p-2 bg-gray-900 rounded-xl border-2 border-gray-700 hover:border-indigo-500 cursor-pointer sm:col-span-2">
+                    <div class="text-[9px] font-bold text-gray-200 mb-1 text-center">Timer + Screen + Notes</div>
+                    <div class="w-full h-10 flex gap-1"><div class="w-[30%] bg-blue-900/60 border border-blue-700 rounded text-[7px] flex items-center justify-center">Timer</div><div class="w-[70%] flex flex-col gap-1"><div class="w-full h-1/2 bg-emerald-900/60 border border-emerald-700 rounded text-[6px] flex items-center justify-center">Screen</div><div class="w-full h-1/2 bg-purple-900/60 border border-purple-700 rounded text-[6px] flex items-center justify-center">Notes</div></div></div>
+                </div>
+            </div>
+
+            <div id="layoutCustomizerControls" class="hidden flex-col gap-3">
+                <div class="bg-gray-900 p-4 rounded-xl border border-gray-700 flex flex-col gap-2">
+                    <div class="flex justify-between items-center text-xs font-bold">
+                        <span class="text-blue-400"><span id="sliderRatioLabelLeft">Left Width:</span> <span id="sliderRatioDisplay">50%</span></span>
+                        <span class="text-purple-400"><span id="sliderRatioLabelRight">Right Width:</span> <span id="sliderNotesRatioDisplay">50%</span></span>
+                    </div>
+                    <input type="range" id="layoutRatioSlider" min="20" max="80" value="50" oninput="handleLayoutSliderChange(this.value)" class="w-full accent-indigo-500 cursor-pointer" aria-label="Panel split ratio">
+                </div>
+                <button onclick="toggleSwapOrder()" id="btnSwapOrder" class="w-full py-2 bg-gray-700 hover:bg-gray-600 text-xs font-bold rounded-lg border border-gray-600 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer">
+                    ⇄ Swap Panel Positions
+                </button>
+            </div>
+
+            <div class="flex justify-end pt-2 border-t border-gray-700">
+                <button onclick="closeModal('layoutModal')" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition active:scale-95 cursor-pointer">Apply & Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- SCRIPT LOGIC -->
+    <script>
+        const presets = {
+            preset_morning: [
+                { time: "09:00", duration: 15, topic: "Event Opening & Welcome", speakers: "Host", status: "pending" },
+                { time: "09:15", duration: 45, topic: "Keynote Presentation", speakers: "Speaker 1", status: "pending" },
+                { time: "10:00", duration: 15, topic: "Q&A Session", speakers: "All", status: "pending" },
+                { time: "10:15", duration: 30, topic: "Coffee Break", speakers: "-", status: "pending" }
+            ]
+        };
+
+        // --- GLOBAL APP STATE ---
+        let myRoomCode = "";
+        let myRole = "viewer";
+        // Which output link this browser tab opened as: null (default stage display),
+        // 'speaker' (confidence monitor) or 'obs' (transparent stream overlay). This is
+        // deliberately NOT synced through Firebase — it describes what THIS physical
+        // screen is for, so two monitors in the same room can show different things.
+        let localOutputView = null;
+        let myPresenceRef = null;
+        let dragSrcIndex = null;
+        let lastSeenMsgId = null;
+        let roomRef = null;
+        let currentSlideIndex = 0;
+
+        let mediaPeer = null;
+        let myMediaPeerId = null;
+        let localScreenStream = null;
+        let activeMediaCalls = [];
+        let calledPeers = new Set();
+        let watchdogTimer = null;
+
+        // Canvas Cropping Vars
+        let interactiveCanvas = null;
+        let interactiveCtx = null;
+        let cropRegion = { x: 0, y: 0, width: 100, height: 100 };
+        let cropLoopAnim = null;
+        let isSelectingRegion = false;
+        let dragStartPos = { x: 0, y: 0 };
+
+        // TRUE PAUSE STATE STRUCTURE
+        let globalState = {
+            agenda: [...presets.preset_morning],
+            masterStart: "09:00",
+            activeTimer: null, // { endTime, remainingMs, isPaused, topic, speaker, agendaIndex }
+            bannerMsg: null,
+            slideNotes: { currentNote: "", nextNoteSnippet: "", slideNum: 1, totalSlides: 1, rawText: "" },
+            layoutState: { preset: "timer_only", leftWidthPct: 50, topRightHeightPct: 50, swapped: false },
+            fontSize: 32,
+            timerFontSize: 100,
+            templates: {},
+            hostPeerId: null,
+            cropRegion: { x: 0, y: 0, width: 100, height: 100 },
+            isStreaming: false
+        };
+
+        function sanitizeAgenda(raw) {
+            if (!raw) return [];
+            if (Array.isArray(raw)) return raw;
+            if (typeof raw === 'object') return Object.values(raw);
+            return [];
+        }
+
+        // --- SECURITY: escape untrusted text before it is ever inserted via innerHTML.
+        // Agenda topics/speakers, template names, and room codes are all typed by
+        // *other* operators and synced live through Firebase, so without this any
+        // operator could inject markup/script that runs in every connected browser.
+        function escapeHtml(str) {
+            return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        // --- TOAST NOTIFICATIONS (non-blocking replacement for most alert() calls) ---
+        function showToast(message, type = 'info', durationMs = 3200) {
+            const stack = document.getElementById('toastStack');
+            if (!stack) { console.log(message); return; }
+            const icons = { success: '✅', error: '⚠️', warn: '⚠️', info: 'ℹ️' };
+            const el = document.createElement('div');
+            el.className = `toast-item toast-${type}`;
+            el.setAttribute('role', 'status');
+            el.innerHTML = `<span aria-hidden="true">${icons[type] || icons.info}</span><span>${escapeHtml(message)}</span>`;
+            stack.appendChild(el);
+            const remove = () => {
+                el.classList.add('toast-out');
+                setTimeout(() => el.remove(), 220);
+            };
+            setTimeout(remove, durationMs);
+            el.addEventListener('click', remove);
+        }
+
+        // --- Small ripple micro-interaction for primary action buttons (event delegation) ---
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn || btn.disabled) return;
+            const rect = btn.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            const ripple = document.createElement('span');
+            ripple.className = 'ripple-fx';
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+            ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+            const prevPosition = getComputedStyle(btn).position;
+            if (prevPosition === 'static') btn.style.position = 'relative';
+            btn.classList.add('btn-ripple');
+            btn.appendChild(ripple);
+            ripple.addEventListener('animationend', () => ripple.remove());
+        });
+
+        let lastFocusedBeforeModal = null;
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                lastFocusedBeforeModal = document.activeElement;
+                modal.classList.remove('hidden');
+                modal.setAttribute('role', 'dialog');
+                modal.setAttribute('aria-modal', 'true');
+                const panel = modal.querySelector(':scope > div');
+                if (panel) {
+                    panel.classList.remove('modal-panel-anim');
+                    void panel.offsetWidth; // restart animation
+                    panel.classList.add('modal-panel-anim');
+                }
+                if (modalId === 'templateModal') updateSavedTemplateDropdown();
+                if (modalId === 'archivesModal') fetchAndRenderArchives();
+                if (modalId === 'endEventModal') document.getElementById('confirmCodePlaceholder').innerText = myRoomCode;
+                const firstField = modal.querySelector('input, button');
+                if (firstField) firstField.focus({ preventScroll: true });
+            }
+        }
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('hidden');
+            if (lastFocusedBeforeModal && lastFocusedBeforeModal.focus) lastFocusedBeforeModal.focus({ preventScroll: true });
+        }
+
+        function getOpenModalId() {
+            const openModalEl = Array.from(document.querySelectorAll('[id$="Modal"]')).find(m => !m.classList.contains('hidden'));
+            return openModalEl ? openModalEl.id : null;
+        }
+
+        // Escape closes the top-most open modal; clicking the dark backdrop also closes it.
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const openId = getOpenModalId();
+                if (openId) closeModal(openId);
+            }
+        });
+        document.querySelectorAll('[id$="Modal"]').forEach(modal => {
+            modal.addEventListener('mousedown', (e) => {
+                if (e.target === modal) closeModal(modal.id);
+            });
+        });
+
+        // --- OUTPUT LINKS: four distinct link types for four distinct destinations,
+        // modeled on how stagetimer.io splits its output links — a controller for
+        // operators, a public stage display, a speaker's own confidence monitor
+        // (which must keep showing the timer+notes no matter what the big public
+        // screen is doing), and a transparent OBS/vMix streaming overlay.
+        const OUTPUT_LINK_TYPES = {
+            operator: {
+                icon: '💻', title: 'Controller Link',
+                desc: 'Complete access to manage timers, rundown, and screen shares.',
+                params: { role: 'operator' }
+            },
+            stage: {
+                icon: '📺', title: 'Stage Display Link',
+                desc: 'The main audience-facing screen. Follows whatever layout the operator sets in Layout Manager.',
+                params: { role: 'prompter' }
+            },
+            speaker: {
+                icon: '🎤', title: 'Speaker Monitor Link',
+                desc: "The presenter's own confidence monitor: always shows the timer and their notes, even if the public stage display is set to Screen Only.",
+                params: { role: 'prompter', view: 'speaker' }
+            },
+            obs: {
+                icon: '🎬', title: 'OBS / Stream Overlay Link',
+                desc: 'Transparent, chrome-free timer for a browser-source layer in OBS, vMix, or similar streaming software.',
+                params: { role: 'prompter', view: 'obs' }
+            }
+        };
+
+        function openShareModal() {
+            document.getElementById('shareLinksModal').classList.remove('hidden');
+            switchShareTab('stage');
+        }
+
+        function switchShareTab(tab) {
+            const def = OUTPUT_LINK_TYPES[tab];
+            if (!def) return;
+            const urlBase = window.location.origin + window.location.pathname + '?room=' + (myRoomCode || 'DEMO');
+            const input = document.getElementById('shareUrlInput');
+            const title = document.getElementById('shareTabTitle');
+            const desc = document.getElementById('shareTabDesc');
+            const icon = document.getElementById('sharePreviewIcon');
+
+            Object.keys(OUTPUT_LINK_TYPES).forEach(key => {
+                const btn = document.getElementById('tab_' + key);
+                if (btn) {
+                    btn.className = "px-3 sm:px-4 py-3 flex flex-col items-center gap-1 whitespace-nowrap cursor-pointer " + (key === tab ? "tab-btn-active" : "tab-btn-inactive");
+                    btn.setAttribute('aria-selected', key === tab ? 'true' : 'false');
+                }
+            });
+
+            const query = new URLSearchParams(def.params).toString();
+            input.value = urlBase + '&' + query;
+            title.innerText = def.title;
+            desc.innerText = def.desc;
+            icon.innerText = def.icon;
+
+            document.getElementById('shareQrContainer').classList.add('hidden');
+        }
+
+        function copyShareLink(btn) {
+            const input = document.getElementById('shareUrlInput');
+            const finish = () => {
+                showToast('Link copied to clipboard!', 'success');
+                if (btn) {
+                    const original = btn.innerHTML;
+                    btn.innerHTML = '✅ Copied';
+                    btn.classList.add('copy-check');
+                    setTimeout(() => { btn.innerHTML = original; btn.classList.remove('copy-check'); }, 1400);
+                }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(input.value).then(finish).catch(() => {
+                    input.select();
+                    document.execCommand('copy');
+                    finish();
+                });
+            } else {
+                input.select();
+                document.execCommand('copy');
+                finish();
+            }
+        }
+
+        function toggleShareQR() {
+            const container = document.getElementById('shareQrContainer');
+            const qrDiv = document.getElementById('shareQrCode');
+            const url = document.getElementById('shareUrlInput').value;
+
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                qrDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}" alt="QR Code" class="w-48 h-48">`;
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function openShareLinkTarget() {
+            window.open(document.getElementById('shareUrlInput').value, '_blank');
+        }
+
+        function sanitizeRoomCode(raw) { return (raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+        function autoGenerateRoomCode() { document.getElementById('createRoomInput').value = Math.floor(100000 + Math.random() * 900000).toString(); }
+
+        function parseDurationStr(val) {
+            if (val === null || val === undefined) return 15;
+            if (typeof val === 'number') return isNaN(val) || val <= 0 ? 15 : Math.floor(val);
+            const str = String(val).trim();
+            if (str.includes(':')) {
+                const parts = str.split(':').map(Number);
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) return (parts[0] * 60) + parts[1];
+            }
+            const parsed = parseInt(str, 10);
+            return (!isNaN(parsed) && parsed > 0) ? parsed : 15;
+        }
+
+        function openPrompterNewTab() {
+            window.open(window.location.origin + window.location.pathname + '?room=' + myRoomCode + '&role=prompter', '_blank');
+        }
+
+        function migrateLocalTemplates() {
+            let migrated = false;
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('ypk_tpl_')) {
+                        try {
+                            globalState.templates[key] = JSON.parse(localStorage.getItem(key));
+                            migrated = true;
+                        } catch(e) {}
+                    }
+                }
+            } catch(e) {}
+            if (migrated && myRole === 'operator') pushStateUpdate({ templates: globalState.templates });
+        }
+
+        // --- CORE FIREBASE ENGINE ---
+        function initFirebaseRoom(code, role) {
+            myRoomCode = code;
+            myRole = role;
+
+            if (db) {
+                roomRef = db.ref('rooms/' + myRoomCode);
+            } else {
+                showToast('Database disconnected. Check your connection and reload.', 'error', 8000);
+                return;
+            }
+
+            try {
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.set('room', myRoomCode);
+                newUrl.searchParams.set('role', myRole === 'operator' ? 'operator' : 'prompter');
+                window.history.replaceState(null, '', newUrl.toString());
+            } catch (e) { console.warn("History bypass"); }
+
+            if(role === 'operator') {
+                const dot = document.getElementById('firebaseStatusDot');
+                if(dot) dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                document.getElementById('roomCodeDisplay').innerText = myRoomCode;
+                migrateLocalTemplates();
+            }
+
+            initMediaPeer();
+
+            const myClientId = Math.random().toString(36).substring(2, 12);
+            myPresenceRef = db.ref(`rooms/${myRoomCode}/presence/${myClientId}`);
+
+            db.ref('.info/connected').on('value', (snap) => {
+                if (snap.val() === true) {
+                    myPresenceRef.set({ role: myRole, mediaPeerId: myMediaPeerId || null, connectedAt: firebase.database.ServerValue.TIMESTAMP });
+                    myPresenceRef.onDisconnect().remove();
+                    if(role === 'viewer') updatePrompterConnStatus('green', `🟢 Connected (${myRoomCode})`);
+                } else {
+                    if(role === 'viewer') updatePrompterConnStatus('rose', `🔴 Reconnecting to DB...`);
+                }
+            });
+
+            db.ref(`rooms/${myRoomCode}/presence`).on('value', (snap) => {
+                const presenceData = snap.val() || {};
+                let displays = 0;
+                let oldestOp = null, oldestOpTime = Infinity;
+
+                Object.keys(presenceData).forEach(key => {
+                    const p = presenceData[key];
+                    if (p.role === 'viewer') displays++;
+                    if (p.role === 'operator') {
+                        if (p.connectedAt < oldestOpTime) { oldestOpTime = p.connectedAt; oldestOp = key; }
+                    }
+
+                    if (myRole === 'operator' && globalState.isStreaming && localScreenStream) {
+                        if (p.role === 'viewer' && p.mediaPeerId && !calledPeers.has(p.mediaPeerId)) {
+                            calledPeers.add(p.mediaPeerId);
+                            const call = mediaPeer.call(p.mediaPeerId, localScreenStream);
+                            if (call) activeMediaCalls.push(call);
+                        }
+                    }
+                });
+
+                if(role === 'operator') document.getElementById('connectedDevicesBadge').innerText = `👁️ ${displays} Displays`;
+
+                if (role === 'operator') {
+                    if (oldestOp === myClientId) {
+                        document.getElementById('operatorRoleBadge').innerText = "Admin 1 (Host)";
+                        document.getElementById('operatorRoleBadge').className = "text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 font-bold uppercase";
+                        roomRef.child('state').once('value', s => { if (!s.exists()) pushStateUpdate(globalState); });
+                    } else {
+                        document.getElementById('operatorRoleBadge').innerText = "Admin 2 (Co-Operator)";
+                        document.getElementById('operatorRoleBadge').className = "text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-700 font-bold uppercase";
+                    }
+                }
+            });
+
+            // State Sync
+            roomRef.child('state').on('value', (snap) => {
+                const newState = snap.val();
+                if (!newState) return;
+
+                const oldStreamingState = globalState.isStreaming;
+
+                if (newState.agenda) newState.agenda = sanitizeAgenda(newState.agenda);
+                globalState = { ...globalState, ...newState };
+                globalState.agenda = sanitizeAgenda(globalState.agenda);
+
+                if (globalState.bannerMsg && globalState.bannerMsg.id !== lastSeenMsgId) {
+                    lastSeenMsgId = globalState.bannerMsg.id;
+                    showPrompterMessage(globalState.bannerMsg.text);
+                }
+
+                if (myRole === 'viewer') {
+                    if (globalState.isStreaming) {
+                        updatePrompterConnStatus('amber', '📥 Receiving Stream...');
+                        const vEl = document.getElementById('prompterVideoStream');
+                        if (globalState.hostPeerId && mediaPeer && (!vEl.srcObject || vEl.paused || vEl.ended)) {
+                            requestStreamFromHost(globalState.hostPeerId);
+                        }
+                    } else if (!globalState.isStreaming && oldStreamingState) {
+                        const vEl = document.getElementById('prompterVideoStream');
+                        if (vEl) { vEl.srcObject = null; vEl.classList.add('hidden'); }
+                        document.getElementById('noStreamPlaceholder').classList.remove('hidden');
+                        updatePrompterConnStatus('green', `🟢 Connected (${myRoomCode})`);
+                    }
+                    applyGpuCssCropToPrompter();
+                }
+
+                if (myRole === 'operator') {
+                    if (document.getElementById('eventStartTime').value !== globalState.masterStart) {
+                        document.getElementById('eventStartTime').value = globalState.masterStart;
+                    }
+                    if (document.activeElement !== document.getElementById('liveNotesInput')) {
+                        document.getElementById('liveNotesInput').value = globalState.slideNotes.rawText || "";
+                    }
+
+                    document.getElementById('videoControlsCard').style.display = globalState.isStreaming ? 'block' : 'none';
+
+                    renderAgenda();
+                    updateOperatorTimerUI();
+                    if(!document.getElementById('templateModal').classList.contains('hidden')) updateSavedTemplateDropdown();
+                }
+
+                applyLayoutStateUI();
+                applyFontSize(globalState.fontSize);
+                applyTimerFontSize(globalState.timerFontSize);
+                checkActiveSession();
+            });
+
+            // Transient Events
+            roomRef.child('events').on('child_added', (snap) => {
+                const evt = snap.val();
+                if (!evt) return;
+                if (Date.now() - evt.ts < 10000) {
+                    if (evt.type === 'scroll' && myRole === 'viewer') scrollPrompterWrapper(evt.offset);
+                    if (evt.type === 'request_stream' && myRole === 'operator' && localScreenStream && evt.peerId) {
+                        mediaPeer.call(evt.peerId, localScreenStream);
+                    }
+                    if (evt.type === 'end_room') {
+                        if(myRole === 'viewer') { showToast('The operator ended this event room.', 'warn', 4000); setTimeout(goBack, 1200); }
+                    }
+                }
+            });
+
+            if (role === 'viewer') {
+                if (watchdogTimer) clearInterval(watchdogTimer);
+                watchdogTimer = setInterval(() => {
+                    if (globalState.isStreaming && globalState.hostPeerId) {
+                        const vEl = document.getElementById('prompterVideoStream');
+                        if (!vEl || !vEl.srcObject || vEl.paused) {
+                            requestStreamFromHost(globalState.hostPeerId);
+                        }
+                    }
+                }, 2000);
+            }
+        }
+
+        // --- ZERO-LATENCY WEBRTC MEDIA ENGINE ---
+        const peerIceConfig = {
+            config: { iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
+            ] }
+        };
+
+        function initMediaPeer() {
+            if (mediaPeer && !mediaPeer.destroyed) return;
+            try {
+                mediaPeer = new Peer(peerIceConfig);
+
+                mediaPeer.on('open', id => {
+                    myMediaPeerId = id;
+                    if (myPresenceRef) myPresenceRef.update({ mediaPeerId: id });
+
+                    if (myRole === 'viewer' && globalState.isStreaming && globalState.hostPeerId) {
+                        requestStreamFromHost(globalState.hostPeerId);
+                    }
+                });
+
+                mediaPeer.on('call', call => {
+                    call.answer();
+                    call.on('stream', remoteStream => {
+                        const videoEl = document.getElementById('prompterVideoStream');
+                        const placeholder = document.getElementById('noStreamPlaceholder');
+                        const forceBtn = document.getElementById('btnForcePlayVideo');
+
+                        if (videoEl && placeholder) {
+                            videoEl.srcObject = remoteStream;
+                            videoEl.muted = true;
+                            videoEl.classList.remove('hidden');
+                            placeholder.classList.add('hidden');
+
+                            videoEl.play().catch(e => {
+                                console.warn("Autoplay deferred:", e);
+                                if (forceBtn) forceBtn.classList.remove('hidden');
+                            });
+                        }
+                        if (myRole === 'viewer') updatePrompterConnStatus('green', `🟢 Connected (${myRoomCode})`);
+                    });
+                });
+            } catch(e) { console.error("PeerJS initialization failed:", e); }
+        }
+
+        function forcePlayPrompterVideo() {
+            const v = document.getElementById('prompterVideoStream');
+            const forceBtn = document.getElementById('btnForcePlayVideo');
+            if (v) {
+                v.play().then(() => {
+                    if (forceBtn) forceBtn.classList.add('hidden');
+                }).catch(e => console.error(e));
+            }
+        }
+
+        function requestStreamFromHost(hostId) {
+            if (!mediaPeer || !hostId) return;
+            triggerEvent('request_stream', { peerId: myMediaPeerId });
+        }
+
+        async function startPresenterScreenShare() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                showToast('Screen sharing requires HTTPS. Please switch your website URL to HTTPS.', 'error', 6000);
+                return;
+            }
+
+            try {
+                localScreenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { cursor: "always", frameRate: { ideal: 60, max: 60 } },
+                    audio: false
+                });
+
+                const opVid = document.getElementById('opPreviewVideoStream');
+                opVid.srcObject = localScreenStream;
+                await opVid.play();
+
+                interactiveCanvas = document.getElementById('interactiveCanvas');
+                interactiveCtx = interactiveCanvas.getContext('2d');
+
+                initInteractiveCanvasEvents();
+                renderInteractivePreviewLoop();
+
+                document.getElementById('videoControlsCard').style.display = 'block';
+                document.getElementById('startShareBtn').classList.add('hidden');
+                document.getElementById('stopShareBtn').classList.remove('hidden');
+
+                let newPreset = globalState.layoutState.preset;
+                if (newPreset === 'timer_only' || newPreset === 'notes_only') {
+                    newPreset = 'screen_timer_v';
+                }
+
+                pushStateUpdate({
+                    isStreaming: true,
+                    hostPeerId: myMediaPeerId,
+                    cropRegion: cropRegion,
+                    layoutState: { ...globalState.layoutState, preset: newPreset }
+                });
+
+                db.ref(`rooms/${myRoomCode}/presence`).once('value', snap => {
+                    const pData = snap.val() || {};
+                    Object.values(pData).forEach(p => {
+                        if (p.role === 'viewer' && p.mediaPeerId) {
+                            calledPeers.add(p.mediaPeerId);
+                            activeMediaCalls.push(mediaPeer.call(p.mediaPeerId, localScreenStream));
+                        }
+                    });
+                });
+
+                localScreenStream.getVideoTracks()[0].onended = () => stopPresenterScreenShare();
+            } catch(e) { console.error("Screen share cancelled:", e); }
+        }
+
+        function renderInteractivePreviewLoop() {
+            const rawVid = document.getElementById('opPreviewVideoStream');
+            if (!rawVid || rawVid.paused || rawVid.ended || !localScreenStream) return;
+
+            interactiveCanvas.width = 640;
+            interactiveCanvas.height = 360;
+            interactiveCtx.drawImage(rawVid, 0, 0, 640, 360);
+
+            const cx = (cropRegion.x / 100) * 640;
+            const cy = (cropRegion.y / 100) * 360;
+            const cw = (cropRegion.width / 100) * 640;
+            const ch = (cropRegion.height / 100) * 360;
+
+            interactiveCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            interactiveCtx.fillRect(0, 0, 640, cy);
+            interactiveCtx.fillRect(0, cy, cx, ch);
+            interactiveCtx.fillRect(cx + cw, cy, 640 - (cx + cw), ch);
+            interactiveCtx.fillRect(0, cy + ch, 640, 360 - (cy + ch));
+
+            interactiveCtx.strokeStyle = '#a855f7';
+            interactiveCtx.lineWidth = 2;
+            interactiveCtx.strokeRect(cx, cy, cw, ch);
+
+            cropLoopAnim = requestAnimationFrame(renderInteractivePreviewLoop);
+        }
+
+        function initInteractiveCanvasEvents() {
+            if (!interactiveCanvas) return;
+
+            function getCanvasCoords(e) {
+                const rect = interactiveCanvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: Math.max(0, Math.min(640, (clientX - rect.left) * (640 / rect.width))),
+                    y: Math.max(0, Math.min(360, (clientY - rect.top) * (360 / rect.height)))
+                };
+            }
+
+            interactiveCanvas.onmousedown = interactiveCanvas.ontouchstart = (e) => {
+                isSelectingRegion = true;
+                dragStartPos = getCanvasCoords(e);
+            };
+
+            interactiveCanvas.onmousemove = interactiveCanvas.ontouchmove = (e) => {
+                if (!isSelectingRegion) return;
+                const currentPos = getCanvasCoords(e);
+
+                const x = Math.min(dragStartPos.x, currentPos.x);
+                const y = Math.min(dragStartPos.y, currentPos.y);
+                const w = Math.abs(currentPos.x - dragStartPos.x);
+                const h = Math.abs(currentPos.y - dragStartPos.y);
+
+                if (w > 20 && h > 20) {
+                    setCropRegion(
+                        Math.round((x / 640) * 100),
+                        Math.round((y / 360) * 100),
+                        Math.round((w / 640) * 100),
+                        Math.round((h / 360) * 100)
+                    );
+                }
+            };
+
+            interactiveCanvas.onmouseup = interactiveCanvas.ontouchend = () => {
+                isSelectingRegion = false;
+            };
+        }
+
+        function setCropRegion(x, y, w, h) {
+            cropRegion = { x, y, width: w, height: h };
+            document.getElementById('sliderCropX').value = x;
+            document.getElementById('sliderCropY').value = y;
+            document.getElementById('sliderCropW').value = w;
+            document.getElementById('sliderCropH').value = h;
+
+            document.getElementById('lblCropX').innerText = x + '%';
+            document.getElementById('lblCropY').innerText = y + '%';
+            document.getElementById('lblCropW').innerText = w + '%';
+            document.getElementById('lblCropH').innerText = h + '%';
+
+            pushStateUpdate({ cropRegion: cropRegion });
+        }
+
+        function updateCropFromSliders() {
+            const x = parseInt(document.getElementById('sliderCropX').value);
+            const y = parseInt(document.getElementById('sliderCropY').value);
+            const w = parseInt(document.getElementById('sliderCropW').value);
+            const h = parseInt(document.getElementById('sliderCropH').value);
+
+            setCropRegion(x, y, w, h);
+        }
+
+        // REAL-TIME GPU CSS CROPPING ON PROMPTER STAGE TV
+        function applyGpuCssCropToPrompter() {
+            const v = document.getElementById('prompterVideoStream');
+            if (!v) return;
+
+            const cr = globalState.cropRegion || { x: 0, y: 0, width: 100, height: 100 };
+            const isFullUncropped = (cr.x === 0 && cr.y === 0 && cr.width >= 99 && cr.height >= 99);
+
+            if (isFullUncropped) {
+                v.style.objectFit = 'contain';
+                v.style.width = '100%';
+                v.style.height = '100%';
+                v.style.left = '0%';
+                v.style.top = '0%';
+            } else {
+                v.style.objectFit = 'fill';
+                const w = Math.max(5, cr.width);
+                const h = Math.max(5, cr.height);
+                v.style.width = `${(100 / w) * 100}%`;
+                v.style.height = `${(100 / h) * 100}%`;
+                v.style.left = `${(-cr.x / w) * 100}%`;
+                v.style.top = `${(-cr.y / h) * 100}%`;
+            }
+        }
+
+        function stopPresenterScreenShare() {
+            if (cropLoopAnim) cancelAnimationFrame(cropLoopAnim);
+            if(localScreenStream) {
+                localScreenStream.getTracks().forEach(t => t.stop());
+                localScreenStream = null;
+            }
+            activeMediaCalls.forEach(call => call.close());
+            activeMediaCalls = [];
+            calledPeers.clear();
+
+            document.getElementById('videoControlsCard').style.display = 'none';
+            document.getElementById('startShareBtn').classList.remove('hidden');
+            document.getElementById('stopShareBtn').classList.add('hidden');
+
+            pushStateUpdate({ isStreaming: false, hostPeerId: null });
+        }
+
+        function pushStateUpdate(updates) {
+            if (roomRef) {
+                globalState = { ...globalState, ...updates };
+                globalState.agenda = sanitizeAgenda(globalState.agenda);
+                roomRef.child('state').update(updates).catch(e => console.error("Firebase Update failed:", e));
+            }
+        }
+
+        function triggerEvent(type, payload) {
+            if (roomRef) {
+                const newEvtRef = roomRef.child('events').push();
+                newEvtRef.set({ type, ...payload, ts: Date.now() });
+            }
+        }
+
+        // --- AGENDA & TIMELINE MATH ---
+        function recalculateCascadingTimes(startIndex = 0) {
+            globalState.agenda = sanitizeAgenda(globalState.agenda);
+            if (globalState.agenda.length === 0) return;
+
+            let tempAgenda = JSON.parse(JSON.stringify(globalState.agenda));
+            let current = new Date();
+
+            if (startIndex === 0) {
+                const masterVal = document.getElementById('eventStartTime').value || "09:00";
+                let [hours, minutes] = masterVal.split(':').map(Number);
+                current.setHours(hours || 9, minutes || 0, 0, 0);
+                tempAgenda[0].time = `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`;
+            } else {
+                let [hours, minutes] = (tempAgenda[startIndex].time || "09:00").split(':').map(Number);
+                current.setHours(hours || 9, minutes || 0, 0, 0);
+            }
+
+            for (let i = startIndex; i < tempAgenda.length; i++) {
+                if (i > startIndex) {
+                    tempAgenda[i].time = `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`;
+                }
+                const dur = parseDurationStr(tempAgenda[i].duration);
+                current.setMinutes(current.getMinutes() + dur);
+            }
+
+            let updatedTimer = globalState.activeTimer;
+            if (globalState.activeTimer && !globalState.activeTimer.isPaused) {
+                const liveIdx = globalState.activeTimer.agendaIndex;
+                if (liveIdx !== undefined && tempAgenda[liveIdx] && tempAgenda[liveIdx].status === 'live') {
+                    const liveSession = tempAgenda[liveIdx];
+                    if (liveSession.startTime) {
+                        const newDurMins = parseDurationStr(liveSession.duration);
+                        updatedTimer = {
+                            ...globalState.activeTimer,
+                            endTime: liveSession.startTime + (newDurMins * 60000)
+                        };
+                    }
+                }
+            }
+
+            pushStateUpdate({
+                agenda: tempAgenda,
+                masterStart: document.getElementById('eventStartTime').value,
+                activeTimer: updatedTimer
+            });
+        }
+
+        function updateAgendaTime(index, val) {
+            globalState.agenda[index].time = val;
+            if (document.activeElement) document.activeElement.blur();
+            recalculateCascadingTimes(index);
+        }
+
+        function updateDurationAndRecalculate(index, val) {
+            globalState.agenda[index].duration = parseDurationStr(val);
+            if (document.activeElement) document.activeElement.blur();
+            recalculateCascadingTimes(index);
+        }
+
+        let typingTimeout;
+        function updateAgendaItem(index, key, val) {
+            globalState.agenda[index][key] = val;
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => { pushStateUpdate({ agenda: globalState.agenda }); }, 400);
+        }
+
+        function handleDragStart(e) {
+            dragSrcIndex = parseInt(this.getAttribute('data-index'));
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', dragSrcIndex);
+            this.classList.add('dragging');
+        }
+        function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
+        function handleDragEnter(e) { this.classList.add('drag-over-target'); }
+        function handleDragLeave(e) { this.classList.remove('drag-over-target'); }
+
+        function handleDrop(e) {
+            e.stopPropagation();
+            this.classList.remove('drag-over-target');
+            const dropIndex = parseInt(this.getAttribute('data-index'));
+
+            if (dragSrcIndex !== null && dragSrcIndex !== dropIndex) {
+                let tempAgenda = sanitizeAgenda(globalState.agenda);
+                const draggedItem = tempAgenda.splice(dragSrcIndex, 1)[0];
+                tempAgenda.splice(dropIndex, 0, draggedItem);
+
+                globalState.agenda = tempAgenda;
+                // Full recalculate from top to maintain accurate cascade
+                recalculateCascadingTimes(0);
+            }
+            return false;
+        }
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.draggable-row').forEach(row => row.classList.remove('drag-over-target'));
+        }
+
+        function renderAgenda() {
+            const activeEl = document.activeElement;
+            if (activeEl && activeEl.tagName === 'INPUT' && activeEl.closest('#agendaTableBody')) return;
+
+            const tbody = document.getElementById('agendaTableBody');
+            if (!tbody) return;
+
+            let htmlStr = '';
+            const safeAgenda = sanitizeAgenda(globalState.agenda);
+
+            safeAgenda.forEach((item, index) => {
+                const isActive = item.status === 'live';
+                const isCompleted = item.status === 'completed';
+
+                let rowStyle = "border-b border-gray-800 hover:bg-gray-800 transition-all ";
+                let badge = '<span class="text-[10px] text-gray-500 font-bold uppercase">Pending</span>';
+
+                if (isActive) {
+                    rowStyle += "bg-blue-900/30 border-l-4 border-l-blue-500";
+                    badge = `<span class="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold animate-pulse shadow">LIVE</span>`;
+                } else if (isCompleted) {
+                    const isOver = item.variance && String(item.variance).includes('+');
+                    if (isOver) {
+                        rowStyle += "bg-rose-950/30 border-l-4 border-l-rose-500 opacity-60";
+                        badge = `<span class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 text-[10px] font-bold border border-rose-700">✓ Done (${item.variance})</span>`;
+                    } else {
+                        rowStyle += "bg-emerald-950/30 border-l-4 border-l-emerald-500 opacity-60";
+                        badge = `<span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 text-[10px] font-bold border border-emerald-700">✓ Done (${item.variance || 'On Time'})</span>`;
+                    }
+                }
+
+                htmlStr += `
+                    <tr class="draggable-row row-fade-in ${rowStyle}" style="animation-delay:${Math.min(index * 25, 300)}ms" draggable="true" data-index="${index}">
+                        <td class="p-2 sm:p-3 text-center text-gray-600 hover:text-blue-400 font-bold cursor-grab select-none drag-handle" aria-hidden="true">⋮⋮</td>
+                        <td class="p-2 sm:p-3"><label class="sr-only" for="agendaTime${index}">Start time for row ${index + 1}</label><input id="agendaTime${index}" type="time" value="${escapeHtml(item.time || '09:00')}" onchange="updateAgendaTime(${index}, this.value)" class="bg-transparent text-xs text-gray-300 font-mono w-20 focus:outline-none focus:border-b focus:border-blue-500"></td>
+                        <td class="p-2 sm:p-3"><label class="sr-only" for="agendaDur${index}">Duration in minutes for row ${index + 1}</label><input id="agendaDur${index}" type="number" value="${escapeHtml(item.duration)}" onchange="updateDurationAndRecalculate(${index}, this.value)" class="bg-transparent text-xs font-bold text-blue-400 w-12 text-center focus:outline-none focus:border-b focus:border-blue-500"></td>
+                        <td class="p-2 sm:p-3"><label class="sr-only" for="agendaTopic${index}">Topic for row ${index + 1}</label><input id="agendaTopic${index}" type="text" value="${escapeHtml(item.topic || '')}" title="${escapeHtml(item.topic || '')}" oninput="updateAgendaItem(${index}, 'topic', this.value)" class="bg-transparent w-full min-w-[8rem] text-xs font-medium text-white focus:outline-none focus:border-b focus:border-blue-500 placeholder-gray-600" placeholder="Session Topic"></td>
+                        <td class="p-2 sm:p-3"><label class="sr-only" for="agendaSpk${index}">Speaker for row ${index + 1}</label><input id="agendaSpk${index}" type="text" value="${escapeHtml(item.speakers || '')}" oninput="updateAgendaItem(${index}, 'speakers', this.value)" class="bg-transparent w-full text-xs text-gray-400 focus:outline-none focus:border-b focus:border-blue-500 placeholder-gray-600" placeholder="Speaker Name"></td>
+                        <td class="p-2 sm:p-3 text-center">${badge}</td>
+                        <td class="p-2 sm:p-3 text-center flex gap-1 justify-center">
+                            <button onclick="startSession(${index})" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-2.5 rounded text-[10px] transition active:scale-95 cursor-pointer" title="Start Session" aria-label="Start session ${escapeHtml(item.topic || 'row ' + (index + 1))}">▶</button>
+                            <button onclick="deleteRow(${index})" class="bg-gray-800 hover:bg-rose-600 text-gray-400 hover:text-white py-1.5 px-2.5 rounded text-[10px] transition active:scale-95 cursor-pointer" title="Delete Row" aria-label="Delete row ${escapeHtml(item.topic || index + 1)}">✕</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = htmlStr;
+
+            document.querySelectorAll('.draggable-row').forEach(row => {
+                row.addEventListener('dragstart', handleDragStart);
+                row.addEventListener('dragover', handleDragOver);
+                row.addEventListener('dragenter', handleDragEnter);
+                row.addEventListener('dragleave', handleDragLeave);
+                row.addEventListener('drop', handleDrop);
+                row.addEventListener('dragend', handleDragEnd);
+            });
+        }
+
+        function addNewRow() {
+            let tempAgenda = sanitizeAgenda(globalState.agenda);
+            tempAgenda.push({ time: "00:00", duration: 15, topic: "New Session", speakers: "-", status: "pending" });
+            globalState.agenda = tempAgenda;
+            recalculateCascadingTimes(0);
+        }
+        function deleteRow(index) {
+            let tempAgenda = sanitizeAgenda(globalState.agenda);
+            tempAgenda.splice(index, 1);
+            globalState.agenda = tempAgenda;
+            recalculateCascadingTimes(0);
+        }
+
+        // --- STAGETIMER.IO STYLE MASTER CONTROLS ---
+
+        function updateOperatorTimerUI() {
+            if (myRole !== 'operator') return;
+            const tDisplay = document.getElementById('ctrlTimerDisplay');
+            const tTopic = document.getElementById('ctrlTopic');
+            const tSpk = document.getElementById('ctrlSpeaker');
+            const btnPause = document.getElementById('btnCtrlPause');
+            const btnPlay = document.getElementById('btnCtrlPlay');
+
+            if (!globalState.activeTimer) {
+                tTopic.innerText = "Waiting to Start...";
+                tSpk.innerText = "No active session";
+                tDisplay.innerText = "00:00";
+                tDisplay.className = "text-7xl sm:text-9xl font-black font-mono tracking-tighter text-gray-600 mb-8 select-none";
+                btnPause.classList.remove('hidden');
+                btnPlay.classList.add('hidden');
+            } else {
+                tTopic.innerText = globalState.activeTimer.topic;
+                tSpk.innerText = globalState.activeTimer.speaker || "";
+
+                if (globalState.activeTimer.isPaused) {
+                    btnPause.classList.add('hidden');
+                    btnPlay.classList.remove('hidden');
+                    tDisplay.className = "text-7xl sm:text-9xl font-black font-mono tracking-tighter text-yellow-500 mb-8 drop-shadow-[0_0_20px_rgba(234,179,8,0.3)] animate-pulse select-none";
+                } else {
+                    btnPause.classList.remove('hidden');
+                    btnPlay.classList.add('hidden');
+                    tDisplay.className = "text-7xl sm:text-9xl font-black font-mono tracking-tighter text-white mb-8 drop-shadow-[0_0_20px_rgba(255,255,255,0.1)] select-none";
+                }
+            }
+        }
+
+        function startSession(index) {
+            let tempAgenda = sanitizeAgenda(globalState.agenda);
+            const session = tempAgenda[index];
+            if (!session) return;
+            const dur = parseInt(session.duration) || 15;
+
+            tempAgenda.forEach(i => { if(i.status === 'live') i.status = 'completed'; });
+
+            tempAgenda[index].startTime = Date.now();
+            tempAgenda[index].status = 'live';
+
+            pushStateUpdate({
+                agenda: tempAgenda,
+                activeTimer: {
+                    endTime: Date.now() + (dur * 60000),
+                    remainingMs: null,
+                    isPaused: false,
+                    topic: session.topic,
+                    speaker: session.speakers,
+                    agendaIndex: index
+                }
+            });
+            syncPrompterNotes(false);
+        }
+
+        function pauseActiveTimer() {
+            if (!globalState.activeTimer || globalState.activeTimer.isPaused) return;
+            const rem = globalState.activeTimer.endTime - Date.now();
+            pushStateUpdate({
+                activeTimer: {
+                    ...globalState.activeTimer,
+                    isPaused: true,
+                    remainingMs: rem
+                }
+            });
+        }
+
+        function resumeActiveTimer() {
+            if (!globalState.activeTimer || !globalState.activeTimer.isPaused) return;
+            pushStateUpdate({
+                activeTimer: {
+                    ...globalState.activeTimer,
+                    isPaused: false,
+                    endTime: Date.now() + globalState.activeTimer.remainingMs,
+                    remainingMs: null
+                }
+            });
+        }
+
+        function stopActiveTimer() {
+            if (!globalState.activeTimer) return;
+            const idx = globalState.activeTimer.agendaIndex;
+            let tempAgenda = sanitizeAgenda(globalState.agenda);
+
+            if (idx !== undefined && tempAgenda[idx]) {
+                const session = tempAgenda[idx];
+                const actualMs = session.startTime ? (Date.now() - session.startTime) : 0;
+                const actualMins = Math.round(actualMs / 60000);
+                const plannedMins = parseInt(session.duration) || 15;
+                const varMins = actualMins - plannedMins;
+
+                session.actualDuration = `${actualMins} mins`;
+                session.variance = varMins > 0 ? `+${varMins}m` : `${varMins}m`;
+                session.status = 'completed';
+
+                // DYNAMIC CASCADE LOGIC:
+                let nextPendingIdx = idx + 1;
+                while(nextPendingIdx < tempAgenda.length && tempAgenda[nextPendingIdx].status === 'completed') {
+                    nextPendingIdx++;
+                }
+
+                if (tempAgenda[nextPendingIdx]) {
+                    const now = new Date();
+                    tempAgenda[nextPendingIdx].time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                    pushStateUpdate({ agenda: tempAgenda, activeTimer: null });
+                    recalculateCascadingTimes(nextPendingIdx);
+                    return;
+                }
+            }
+
+            pushStateUpdate({ agenda: tempAgenda, activeTimer: null });
+            recalculateCascadingTimes(0);
+        }
+
+        function adjustActiveTimer(minutes) {
+            if (!globalState.activeTimer) return;
+            const ms = minutes * 60000;
+
+            let newActive = { ...globalState.activeTimer };
+            if (newActive.isPaused) {
+                newActive.remainingMs += ms;
+            } else {
+                newActive.endTime += ms;
+            }
+
+            const idx = newActive.agendaIndex;
+            let tempAgenda = sanitizeAgenda(globalState.agenda);
+
+            if (idx !== undefined && tempAgenda[idx]) {
+                const currentDur = parseInt(tempAgenda[idx].duration) || 0;
+                tempAgenda[idx].duration = Math.max(1, currentDur + minutes);
+            }
+
+            pushStateUpdate({ activeTimer: newActive, agenda: tempAgenda });
+            if (idx !== undefined) recalculateCascadingTimes(idx);
+        }
+
+        function startManualTimer() {
+            const mins = parseFloat(document.getElementById('minInput').value) || 5;
+            pushStateUpdate({
+                activeTimer: {
+                    endTime: Date.now() + (mins * 60000),
+                    remainingMs: null,
+                    isPaused: false,
+                    topic: "Custom Countdown",
+                    speaker: "Live Stage",
+                    agendaIndex: undefined
+                }
+            });
+            showToast(`Custom ${mins}-minute countdown started.`, 'success');
+        }
+
+        function sendMessage() {
+            const msg = document.getElementById('msgInput').value.trim();
+            if(!msg) return;
+            pushStateUpdate({ bannerMsg: { text: msg, id: Date.now() + Math.random() }});
+            document.getElementById('msgInput').value = '';
+            showToast('Banner alert sent to the stage prompter.', 'success', 2000);
+        }
+
+        function remotePrompterScroll(offset) { triggerEvent('scroll', { offset: offset }); }
+
+        function checkEndRoomAuth() {
+            const inputVal = sanitizeRoomCode(document.getElementById('confirmEndRoomInput').value);
+            const btn = document.getElementById('btnConfirmEndEvent');
+            if (inputVal === myRoomCode) {
+                btn.disabled = false;
+                btn.className = "flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition shadow-lg active:scale-95 cursor-pointer animate-pulse";
+            } else {
+                btn.disabled = true;
+                btn.className = "flex-1 py-2.5 bg-rose-600/40 text-gray-400 text-xs font-bold rounded-xl transition cursor-not-allowed";
+            }
+        }
+
+        // --- FIREBASE ARCHIVING SYSTEM ---
+        function executeEndEvent() {
+            triggerEvent('end_room', {});
+
+            if (db && myRoomCode) {
+                const archiveKey = myRoomCode + '_' + Date.now();
+                const archiveData = {
+                    roomCode: myRoomCode,
+                    endedAt: firebase.database.ServerValue.TIMESTAMP,
+                    endedDateStr: new Date().toLocaleString(),
+                    masterStart: globalState.masterStart,
+                    agenda: globalState.agenda || [],
+                    slideNotes: globalState.slideNotes ? (globalState.slideNotes.rawText || "") : "",
+                    templates: globalState.templates || {}
+                };
+
+                db.ref('archives/' + archiveKey).set(archiveData).then(() => {
+                    if (roomRef) roomRef.remove();
+                    closeModal('endEventModal');
+                    showToast(`Event "${myRoomCode}" successfully archived to Cloud Database!`, 'success');
+                    goBack();
+                }).catch(err => {
+                    console.error("Archive Failed:", err);
+                    if (roomRef) roomRef.remove();
+                    closeModal('endEventModal');
+                    showToast('Event ended, but archiving to the cloud failed — this log was not saved.', 'error', 6000);
+                    goBack();
+                });
+            } else {
+                if (roomRef) roomRef.remove();
+                closeModal('endEventModal');
+                goBack();
+            }
+        }
+
+        function fetchAndRenderArchives() {
+            const container = document.getElementById('archivesListContainer');
+            if (!container || !db) return;
+
+            container.innerHTML = Array.from({ length: 3 }).map(() =>
+                `<div class="h-14 rounded-xl skeleton-shimmer"></div>`
+            ).join('');
+
+            db.ref('archives').once('value', snap => {
+                const archivesData = snap.val() || {};
+                const keys = Object.keys(archivesData);
+
+                if (keys.length === 0) {
+                    container.innerHTML = `<p class="text-xs text-gray-500 italic text-center my-auto">No archived events found in cloud database.</p>`;
+                    return;
+                }
+
+                let htmlStr = '';
+                keys.reverse().forEach((key, i) => {
+                    const item = archivesData[key];
+                    const count = item.agenda ? sanitizeAgenda(item.agenda).length : 0;
+                    htmlStr += `
+                        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 hover:border-purple-500 transition flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 fade-slide-in" style="animation-delay:${Math.min(i * 30, 300)}ms">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-extrabold text-purple-400 font-mono">${escapeHtml(item.roomCode || 'EVENT')}</span>
+                                    <span class="text-[10px] text-gray-400 font-mono">${escapeHtml(item.endedDateStr || '')}</span>
+                                </div>
+                                <span class="text-[11px] text-gray-300 block">${count} Agenda Sessions • Started ${escapeHtml(item.masterStart || '09:00')}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 w-full sm:w-auto justify-end">
+                                <button onclick="loadArchiveToAgenda('${escapeHtml(key)}')" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg transition active:scale-95 cursor-pointer">▶ Load Agenda</button>
+                                <button onclick="exportArchiveToExcel('${escapeHtml(key)}')" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg transition active:scale-95 cursor-pointer">📥 Excel Log</button>
+                                <button onclick="deleteArchive('${escapeHtml(key)}')" class="px-2 py-1.5 bg-red-900/60 hover:bg-red-600 text-red-200 text-[10px] font-bold rounded-lg transition active:scale-95 cursor-pointer" aria-label="Delete archive ${escapeHtml(item.roomCode || 'event')}">🗑️</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = htmlStr;
+            }).catch(err => {
+                console.error("Failed to load archives:", err);
+                container.innerHTML = `<p class="text-xs text-rose-400 italic text-center my-auto">Could not load archives. ${escapeHtml(err.message || 'Check your connection.')}</p>`;
+            });
+        }
+
+        function loadArchiveToAgenda(key) {
+            db.ref('archives/' + key).once('value', snap => {
+                const item = snap.val();
+                if (!item) return;
+                if (item.masterStart) document.getElementById('eventStartTime').value = item.masterStart;
+                globalState.agenda = sanitizeAgenda(item.agenda);
+                recalculateCascadingTimes(0);
+                closeModal('archivesModal');
+                showToast(`Loaded agenda from Archive "${item.roomCode}"!`, 'success');
+            }).catch(err => {
+                console.error("Failed to load archive:", err);
+                showToast('Could not load that archive.', 'error');
+            });
+        }
+
+        function exportArchiveToExcel(key) {
+            db.ref('archives/' + key).once('value', snap => {
+                const item = snap.val();
+                if (!item) return;
+
+                const exportData = sanitizeAgenda(item.agenda).map(row => ({
+                    "Start Time": row.time,
+                    "Duration (Mins)": row.duration,
+                    "Session Topic": row.topic,
+                    "Speaker(s)": row.speakers,
+                    "Status": row.status,
+                    "Actual Duration": row.actualDuration || "-",
+                    "Variance": row.variance || "-"
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 40 }, { wch: 30 }, { wch: 15 }, { wch: 16 }, { wch: 12 }];
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Event Audit Report");
+                XLSX.writeFile(wb, `Audit_Report_${item.roomCode}_${Date.now()}.xlsx`);
+            });
+        }
+
+        function deleteArchive(key) {
+            if (confirm("Permanently delete this event log from Firebase Archives?")) {
+                db.ref('archives/' + key).remove().then(() => fetchAndRenderArchives());
+            }
+        }
+
+        // --- SLIDE NOTES ---
+        function getSlideNotesList(rawTxt) {
+            let r = rawTxt || "";
+            if (myRole === 'operator' && document.getElementById('liveNotesInput')) {
+                r = document.getElementById('liveNotesInput').value || r;
+            }
+            if (!r.trim()) return ["Notes will appear here when session starts..."];
+            return r.split(/\n\s*---\s*\n|\n\s*--\s*\n/).map(s => s.trim());
+        }
+
+        function syncPrompterNotes(fromInput = false) {
+            if (fromInput && myRole === 'operator') {
+                globalState.slideNotes.rawText = document.getElementById('liveNotesInput').value;
+            }
+
+            const slides = getSlideNotesList(globalState.slideNotes.rawText);
+            let idx = globalState.slideNotes.slideNum - 1;
+            if (idx < 0) idx = 0;
+            if (idx >= slides.length) idx = Math.max(0, slides.length - 1);
+
+            pushStateUpdate({
+                slideNotes: {
+                    rawText: globalState.slideNotes.rawText,
+                    currentNote: slides[idx] || "",
+                    nextNoteSnippet: (slides[idx + 1] || "End of presentation").substring(0, 100),
+                    slideNum: idx + 1,
+                    totalSlides: slides.length
+                }
+            });
+        }
+
+        function nextSlide() {
+            const slides = getSlideNotesList(globalState.slideNotes.rawText);
+            if (slides.length > 1 && globalState.slideNotes.slideNum < slides.length) {
+                globalState.slideNotes.slideNum++;
+                syncPrompterNotes();
+            } else {
+                remotePrompterScroll(150);
+            }
+        }
+
+        function prevSlide() {
+            if (globalState.slideNotes.slideNum > 1) {
+                globalState.slideNotes.slideNum--;
+                syncPrompterNotes();
+            } else {
+                remotePrompterScroll(-150);
+            }
+        }
+
+        function toggleFullscreen() {
+            const elem = document.documentElement;
+            if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                if (elem.requestFullscreen) { elem.requestFullscreen(); }
+                else if (elem.msRequestFullscreen) { elem.msRequestFullscreen(); }
+                else if (elem.mozRequestFullScreen) { elem.mozRequestFullScreen(); }
+                else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT); }
+            } else {
+                if (document.exitFullscreen) { document.exitFullscreen(); }
+                else if (document.msExitFullscreen) { document.msExitFullscreen(); }
+                else if (document.mozCancelFullScreen) { document.mozCancelFullScreen(); }
+                else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+            if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFullscreen(); }
+            else if (['PageDown', 'ArrowRight'].includes(e.code)) { e.preventDefault(); nextSlide(); }
+            else if (['PageUp', 'ArrowLeft'].includes(e.code)) { e.preventDefault(); prevSlide(); }
+        });
+
+        // --- TEMPLATES TO FIREBASE ---
+        function saveCurrentTemplateToCloud() {
+            const name = document.getElementById('saveTemplateNameInput').value.trim();
+            if (!name) { showToast('Enter a template name first.', 'warn'); return; }
+            const key = 'tpl_' + name.replace(/[^A-Z0-9]/ig, '_').toLowerCase();
+
+            const newTemplates = { ...globalState.templates };
+            newTemplates[key] = { name: name, agenda: globalState.agenda, startTime: document.getElementById('eventStartTime').value };
+            pushStateUpdate({ templates: newTemplates });
+            document.getElementById('saveTemplateNameInput').value = '';
+            showToast(`Template "${name}" saved to Firebase Cloud!`, 'success');
+        }
+
+        function updateSavedTemplateDropdown() {
+            const container = document.getElementById('savedTemplatesList');
+            if (!container) return;
+            container.innerHTML = '';
+            const tpls = globalState.templates || {};
+            const keys = Object.keys(tpls);
+
+            if (keys.length === 0) {
+                container.innerHTML = `<p class="text-xs text-gray-500 italic p-2 text-center">No cloud templates yet.</p>`;
+                return;
+            }
+
+            keys.forEach(k => {
+                const data = tpls[k];
+                const item = document.createElement('div');
+                item.className = "flex justify-between items-center bg-gray-900 p-2.5 rounded-xl border border-gray-700 hover:border-indigo-500 fade-slide-in";
+                item.innerHTML = `
+                    <div>
+                        <span class="text-xs font-bold text-white block">${escapeHtml(data.name)}</span>
+                        <span class="text-[10px] text-gray-400">${data.agenda ? sanitizeAgenda(data.agenda).length : 0} Sessions • Starts ${escapeHtml(data.startTime)}</span>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <button onclick="loadCloudTemplate('${escapeHtml(k)}')" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg cursor-pointer" aria-label="Load template ${escapeHtml(data.name)}">▶ Load</button>
+                        <button onclick="deleteCloudTemplate('${escapeHtml(k)}')" class="px-2 py-1.5 bg-red-900/60 hover:bg-red-600 text-red-200 text-[10px] font-bold rounded-lg cursor-pointer" aria-label="Delete template ${escapeHtml(data.name)}">🗑️</button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function loadCloudTemplate(key) {
+            const data = globalState.templates[key];
+            if (!data) return;
+            if (data.startTime) document.getElementById('eventStartTime').value = data.startTime;
+            globalState.agenda = sanitizeAgenda(data.agenda);
+            recalculateCascadingTimes(0);
+            closeModal('templateModal');
+        }
+
+        function deleteCloudTemplate(key) {
+            if(confirm("Delete template globally from cloud?")) {
+                let newTpls = { ...globalState.templates };
+                delete newTpls[key];
+                pushStateUpdate({ templates: newTpls });
+            }
+        }
+
+        // --- GRANULAR LAYOUT SELECTOR ---
+        function selectLayoutPreset(presetName, defaultRatio, isSwapped) {
+            const safeRatio = (defaultRatio > 10 && defaultRatio < 90) ? defaultRatio : 50;
+            pushStateUpdate({ layoutState: { preset: presetName, leftWidthPct: safeRatio, topRightHeightPct: 50, swapped: isSwapped }});
+        }
+        function handleLayoutSliderChange(val) { pushStateUpdate({ layoutState: { ...globalState.layoutState, leftWidthPct: parseInt(val) }}); }
+        function toggleSwapOrder() { pushStateUpdate({ layoutState: { ...globalState.layoutState, swapped: !globalState.layoutState.swapped }}); }
+
+        function applyLayoutStateUI() {
+            // A speaker's confidence monitor and an OBS overlay link ignore whatever
+            // layout the operator picked for the public stage display: the speaker
+            // always needs their timer+notes, and OBS always wants just the timer.
+            let ls = globalState.layoutState || {};
+            if (localOutputView === 'speaker') ls = { ...ls, preset: 'timer_notes', swapped: false };
+            else if (localOutputView === 'obs') ls = { ...ls, preset: 'timer_only' };
+
+            const container = document.getElementById('prompterMainLayout');
+            const panelTimer = document.getElementById('panelTimer');
+            const panelRight = document.getElementById('panelRight');
+            const panelScreenShare = document.getElementById('panelScreenShare');
+            const panelSpeakerNotes = document.getElementById('panelSpeakerNotes');
+            const resizerH = document.getElementById('resizerH');
+            const resizerV = document.getElementById('resizerV');
+
+            if(panelTimer) panelTimer.style.cssText = '';
+            if(panelRight) panelRight.style.cssText = '';
+            if(panelScreenShare) panelScreenShare.style.cssText = '';
+            if(panelSpeakerNotes) panelSpeakerNotes.style.cssText = '';
+            if(resizerH) resizerH.style.cssText = '';
+            if(resizerV) resizerV.style.cssText = '';
+            if(container) container.style.cssText = '';
+
+            if(panelTimer) panelTimer.className = "flex flex-col items-center justify-center text-center p-2 relative overflow-hidden";
+            if(panelRight) panelRight.className = "flex flex-col flex-1 items-stretch justify-between overflow-hidden h-full w-full";
+            if(resizerH) resizerH.className = "resizer-h items-center justify-center select-none z-50";
+            if(resizerV) resizerV.className = "resizer-v items-center justify-center select-none my-1 z-50";
+            // resizerV's default "hidden" class was just stripped above; only the
+            // 'all_three' branch below turns it back on, so every other preset
+            // needs it re-hidden here or it renders as a stray 12px bar.
+            if(resizerV) resizerV.style.display = 'none';
+
+            const ratio = (ls.leftWidthPct >= 20 && ls.leftWidthPct <= 80) ? ls.leftWidthPct : 50;
+
+            if (ls.preset === 'timer_only') {
+                if(panelTimer) { panelTimer.style.display = 'flex'; panelTimer.style.width = '100%'; panelTimer.style.height = '100%'; }
+                if(panelRight) { panelRight.style.display = 'none'; }
+                if(resizerH) { resizerH.style.display = 'none'; }
+            } else if (ls.preset === 'notes_only') {
+                if(panelTimer) { panelTimer.style.display = 'none'; }
+                if(panelRight) { panelRight.style.display = 'flex'; panelRight.style.width = '100%'; panelRight.style.height = '100%'; panelRight.style.flex = '1'; }
+                if(panelSpeakerNotes) { panelSpeakerNotes.style.display = 'flex'; panelSpeakerNotes.style.height = '100%'; panelSpeakerNotes.style.width = '100%'; }
+                if(panelScreenShare) { panelScreenShare.style.display = 'none'; }
+                if(resizerH) { resizerH.style.display = 'none'; }
+                if(resizerV) { resizerV.style.display = 'none'; }
+            } else if (ls.preset === 'screen_only') {
+                if(panelTimer) { panelTimer.style.display = 'none'; }
+                if(panelRight) { panelRight.style.display = 'flex'; panelRight.style.width = '100%'; panelRight.style.height = '100%'; panelRight.style.flex = '1'; }
+                if(panelScreenShare) { panelScreenShare.style.display = 'flex'; panelScreenShare.style.height = '100%'; panelScreenShare.style.width = '100%'; panelScreenShare.style.flex = '1'; }
+                if(panelSpeakerNotes) { panelSpeakerNotes.style.display = 'none'; }
+                if(resizerH) { resizerH.style.display = 'none'; }
+                if(resizerV) { resizerV.style.display = 'none'; }
+            } else if (ls.preset === 'screen_timer_v' || ls.preset === 'timer_screen_v') {
+                if(container) {
+                    container.style.display = 'flex';
+                    container.style.flexDirection = (ls.preset === 'screen_timer_v') ? 'column-reverse' : 'column';
+                    container.style.height = '100%';
+                }
+
+                const timerH = (ls.preset === 'screen_timer_v') ? (100 - ratio) : ratio;
+                const screenH = (ls.preset === 'screen_timer_v') ? ratio : (100 - ratio);
+
+                if(panelTimer) { panelTimer.style.display = 'flex'; panelTimer.style.width = '100%'; panelTimer.style.height = timerH + '%'; }
+                if(panelRight) { panelRight.style.display = 'flex'; panelRight.style.width = '100%'; panelRight.style.height = screenH + '%'; panelRight.style.flex = '1'; }
+                if(panelScreenShare) { panelScreenShare.style.display = 'flex'; panelScreenShare.style.height = '100%'; panelScreenShare.style.width = '100%'; panelScreenShare.style.flex = '1'; }
+                if(panelSpeakerNotes) { panelSpeakerNotes.style.display = 'none'; }
+                if(resizerH) { resizerH.style.display = 'flex'; resizerH.style.cursor = 'row-resize'; resizerH.style.width = '100%'; resizerH.style.height = '12px'; }
+            } else if (ls.preset.includes('timer_notes') || ls.preset.includes('timer_screen') || ls.preset === 'swapped' || ls.preset === 'combined') {
+                if(container) container.style.flexDirection = ls.swapped ? 'row-reverse' : 'row';
+                if(panelTimer) { panelTimer.style.display = 'flex'; panelTimer.style.width = ratio + '%'; panelTimer.style.height = '100%'; }
+                if(panelRight) { panelRight.style.display = 'flex'; panelRight.style.width = (100 - ratio) + '%'; panelRight.style.height = '100%'; }
+
+                if (ls.preset.includes('notes') || ls.preset === 'swapped' || ls.preset === 'combined') {
+                    if(panelSpeakerNotes) { panelSpeakerNotes.style.display = 'flex'; panelSpeakerNotes.style.height = '100%'; panelSpeakerNotes.style.width = '100%'; }
+                    if(panelScreenShare) { panelScreenShare.style.display = 'none'; }
+                } else if (ls.preset.includes('screen')) {
+                    if(panelScreenShare) { panelScreenShare.style.display = 'flex'; panelScreenShare.style.height = '100%'; panelScreenShare.style.width = '100%'; panelScreenShare.style.flex = '1'; }
+                    if(panelSpeakerNotes) { panelSpeakerNotes.style.display = 'none'; }
+                }
+
+                if(resizerH) { resizerH.style.display = 'flex'; resizerH.style.cursor = 'col-resize'; resizerH.style.width = '12px'; resizerH.style.height = '100%'; }
+                if(resizerV) { resizerV.style.display = 'none'; }
+            } else if (ls.preset.includes('split_v')) {
+                if(container) container.style.flexDirection = ls.preset === 'split_v_swap' ? 'column-reverse' : 'column';
+                if(panelTimer) { panelTimer.style.display = 'flex'; panelTimer.style.width = '100%'; panelTimer.style.height = ratio + '%'; }
+                if(panelRight) { panelRight.style.display = 'flex'; panelRight.style.width = '100%'; panelRight.style.height = (100 - ratio) + '%'; }
+
+                if(panelSpeakerNotes) { panelSpeakerNotes.style.display = 'flex'; panelSpeakerNotes.style.height = '100%'; panelSpeakerNotes.style.width = '100%'; }
+                if(panelScreenShare) { panelScreenShare.style.display = 'none'; }
+
+                if(resizerH) { resizerH.style.display = 'flex'; resizerH.style.cursor = 'row-resize'; resizerH.style.width = '100%'; resizerH.style.height = '12px'; }
+                if(resizerV) { resizerV.style.display = 'none'; }
+            } else if (ls.preset === 'all_three') {
+                if(container) container.style.flexDirection = 'row';
+                if(panelTimer) { panelTimer.style.display = 'flex'; panelTimer.style.width = ratio + '%'; panelTimer.style.height = '100%'; }
+                if(panelRight) { panelRight.style.display = 'flex'; panelRight.style.width = (100 - ratio) + '%'; panelRight.style.height = '100%'; }
+                if(panelScreenShare) { panelScreenShare.style.display = 'flex'; panelScreenShare.style.height = ls.topRightHeightPct + '%'; panelScreenShare.style.width = '100%'; }
+                if(panelSpeakerNotes) { panelSpeakerNotes.style.display = 'flex'; panelSpeakerNotes.style.height = (100 - ls.topRightHeightPct) + '%'; panelSpeakerNotes.style.width = '100%'; }
+                if(resizerH) { resizerH.style.display = 'flex'; resizerH.style.cursor = 'col-resize'; resizerH.style.width = '12px'; resizerH.style.height = '100%'; }
+                if(resizerV) { resizerV.style.display = 'flex'; }
+            }
+
+            document.querySelectorAll('[id^="layoutCard_"]').forEach(c => c.classList.remove('layout-card-active', 'ring-2', 'ring-indigo-500'));
+            const activeCard = document.getElementById('layoutCard_' + ls.preset);
+            if (activeCard) activeCard.classList.add('layout-card-active', 'ring-2', 'ring-indigo-500');
+
+            const srDisplay = document.getElementById('sliderRatioDisplay');
+            const snDisplay = document.getElementById('sliderNotesRatioDisplay');
+            const slider = document.getElementById('layoutRatioSlider');
+            const custGrp = document.getElementById('layoutCustomizerControls');
+
+            if(slider) slider.value = ratio;
+
+            const lText = document.getElementById('sliderRatioLabelLeft');
+            const rText = document.getElementById('sliderRatioLabelRight');
+
+            if (ls.preset.includes('split_v') || ls.preset.includes('_v')) {
+                if(lText) lText.innerText = 'Top Height: ';
+                if(rText) rText.innerText = 'Bottom Height: ';
+            } else {
+                if(lText) lText.innerText = 'Left Width: ';
+                if(rText) rText.innerText = 'Right Width: ';
+            }
+
+            if(srDisplay) srDisplay.innerText = ratio + '%';
+            if(snDisplay) snDisplay.innerText = (100 - ratio) + '%';
+
+            if(custGrp) {
+                if(ls.preset.includes('only')) custGrp.classList.add('hidden');
+                else custGrp.classList.remove('hidden');
+            }
+
+            applyTimerFontSize(globalState.timerFontSize);
+        }
+
+        // --- LIVE DRAG-TO-RESIZE FOR THE PROMPTER PANEL SPLITTERS ---
+        // The resizer bars had col/row-resize cursors and hover glow styling but no
+        // drag handler was ever wired up, so they looked interactive but did nothing.
+        let resizerPushTimeout = null;
+        function attachResizerDrag(el, ratioKey) {
+            if (!el) return;
+            let dragging = false;
+            let axis = 'x';
+
+            const onMove = (e) => {
+                if (!dragging) return;
+                const container = document.getElementById('prompterMainLayout');
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                let pct = axis === 'x'
+                    ? ((e.clientX - rect.left) / rect.width) * 100
+                    : ((e.clientY - rect.top) / rect.height) * 100;
+                pct = Math.max(20, Math.min(80, Math.round(pct)));
+
+                globalState.layoutState = { ...globalState.layoutState, [ratioKey]: pct };
+                applyLayoutStateUI();
+
+                clearTimeout(resizerPushTimeout);
+                resizerPushTimeout = setTimeout(() => pushStateUpdate({ layoutState: globalState.layoutState }), 100);
+            };
+            const onUp = (e) => {
+                if (!dragging) return;
+                dragging = false;
+                try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+            };
+
+            el.addEventListener('pointerdown', (e) => {
+                dragging = true;
+                axis = getComputedStyle(el).cursor === 'row-resize' ? 'y' : 'x';
+                try { el.setPointerCapture(e.pointerId); } catch (_) {}
+                e.preventDefault();
+            });
+            el.addEventListener('pointermove', onMove);
+            el.addEventListener('pointerup', onUp);
+            el.addEventListener('pointercancel', onUp);
+        }
+
+        function applyFontSize(size) {
+            const content = document.getElementById('prompterNotesContent');
+            if (content) content.style.fontSize = size + 'px';
+        }
+
+        function applyTimerFontSize(scalePct) {
+            const display = document.getElementById('timerDisplay');
+            if (!display) return;
+            const factor = (scalePct || 100) / 100;
+            const ls = globalState.layoutState;
+            if (ls.preset === 'timer_only' || ls.leftWidthPct >= 95 || ls.preset === 'screen_only' || ls.preset === 'notes_only' || ls.preset.includes('split_v') || ls.preset.includes('_v')) {
+                display.style.fontSize = (18 * factor) + 'vw';
+            } else {
+                display.style.fontSize = (11 * factor) + 'vw';
+            }
+        }
+
+        function checkActiveSession() {
+            if (myRole === 'operator') document.getElementById('ctrlTimerDisplay').innerText = document.getElementById('timerDisplay').innerText;
+
+            if (globalState.activeTimer) {
+                document.getElementById('prompterTopic').innerText = globalState.activeTimer.topic;
+                document.getElementById('prompterSpeaker').innerText = globalState.activeTimer.speaker !== "-" ? globalState.activeTimer.speaker : "";
+                document.getElementById('sessionInfo').classList.remove('opacity-0');
+            }
+
+            const notesContent = document.getElementById('prompterNotesContent');
+            const snippetContent = document.getElementById('upNextSnippetContent');
+            const slideNumTag = document.getElementById('prompterSlideNumTag');
+            const badge = document.getElementById('slideCounterBadge');
+
+            if (globalState.slideNotes) {
+                if (notesContent) notesContent.innerText = globalState.slideNotes.currentNote || "No notes.";
+                if (snippetContent) snippetContent.innerText = globalState.slideNotes.nextNoteSnippet || "End of presentation.";
+                if (slideNumTag) slideNumTag.innerText = `🎙️ Speaker Notes (Slide ${globalState.slideNotes.slideNum} of ${globalState.slideNotes.totalSlides})`;
+                if (badge) badge.innerText = `Slide ${globalState.slideNotes.slideNum} of ${globalState.slideNotes.totalSlides}`;
+            }
+        }
+
+        // --- PROMPTER CONNECTION BADGE, IDLE-HIDE HEADER & REMOTE SCROLL ---
+        // These four functions were called from several places (viewer connection
+        // status, the prompterView onmousemove, the transient 'scroll' event handler,
+        // and the PiP button) but were never defined anywhere, so each call threw a
+        // silent ReferenceError and the corresponding feature simply never worked.
+        function updatePrompterConnStatus(colorKey, text) {
+            const badge = document.getElementById('prompterConnBadge');
+            if (!badge) return;
+            const colorMap = {
+                green: 'bg-emerald-950 text-emerald-400 border-emerald-700',
+                rose: 'bg-rose-950 text-rose-400 border-rose-700',
+                amber: 'bg-amber-950 text-amber-400 border-amber-700'
+            };
+            badge.className = `text-[10px] font-mono px-2 py-0.5 rounded border ${colorMap[colorKey] || colorMap.green}`;
+            badge.innerText = text;
+        }
+
+        let prompterIdleTimer = null;
+        function handlePrompterMouseMove() {
+            const header = document.getElementById('prompterHeader');
+            if (!header) return;
+            header.style.opacity = '1';
+            header.style.pointerEvents = 'auto';
+            clearTimeout(prompterIdleTimer);
+            prompterIdleTimer = setTimeout(() => {
+                header.style.opacity = '0';
+                header.style.pointerEvents = 'none';
+            }, 3000);
+        }
+
+        function scrollPrompterWrapper(offset) {
+            const notesPanel = document.getElementById('panelSpeakerNotes');
+            if (notesPanel) notesPanel.scrollBy({ top: offset, behavior: 'smooth' });
+        }
+
+        // --- FLOATING PICTURE-IN-PICTURE TIMER ---
+        // #pipCanvas / #pipVideo already existed in the markup, sized for exactly
+        // this purpose, but nothing ever drew to the canvas or requested PiP.
+        let pipStream = null;
+        function renderPipCanvasFrame() {
+            const canvas = document.getElementById('pipCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const timerText = document.getElementById('timerDisplay')?.innerText || '00:00';
+            const topic = (globalState.activeTimer && globalState.activeTimer.topic) || 'No active session';
+
+            let timerColor = '#ffffff';
+            if (globalState.activeTimer) {
+                if (globalState.activeTimer.isPaused) {
+                    timerColor = '#eab308';
+                } else {
+                    const diff = globalState.activeTimer.endTime - Date.now();
+                    const mins = Math.floor(Math.abs(diff) / 60000);
+                    if (diff <= 0) timerColor = '#ef4444';
+                    else if (mins < 1) timerColor = '#ef4444';
+                    else if (mins < 3) timerColor = '#fb923c';
+                    else if (mins < 5) timerColor = '#facc15';
+                }
+            }
+
+            ctx.fillStyle = timerColor;
+            ctx.font = '900 90px system-ui, -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(timerText, canvas.width / 2, canvas.height / 2 - 12);
+
+            ctx.fillStyle = '#93c5fd';
+            ctx.font = '600 18px system-ui, -apple-system, sans-serif';
+            const label = topic.length > 42 ? topic.slice(0, 42) + '…' : topic;
+            ctx.fillText(label, canvas.width / 2, canvas.height - 26);
+        }
+
+        async function toggleFloatingPipTimer() {
+            const video = document.getElementById('pipVideo');
+            const canvas = document.getElementById('pipCanvas');
+            if (!video || !canvas) return;
+
+            if (document.pictureInPictureElement) {
+                try { await document.exitPictureInPicture(); } catch (e) { console.error(e); }
+                return;
+            }
+
+            if (!document.pictureInPictureEnabled) {
+                showToast('Picture-in-Picture is not supported in this browser.', 'error');
+                return;
+            }
+
+            try {
+                renderPipCanvasFrame();
+                if (!pipStream) {
+                    pipStream = canvas.captureStream(10);
+                    video.srcObject = pipStream;
+                }
+                await video.play();
+                await video.requestPictureInPicture();
+                showToast('Floating timer enabled — you can switch tabs freely now.', 'success');
+            } catch (e) {
+                console.error('PiP failed:', e);
+                showToast('Could not start the floating timer window.', 'error');
+            }
+        }
+
+        // --- TICKING RENDER LOOP ---
+        function updatePrompterDisplay() {
+            const display = document.getElementById('timerDisplay');
+            const ctrlDisplay = document.getElementById('ctrlTimerDisplay');
+            const opDisplay = document.getElementById('opStageClock');
+            const body = document.getElementById('mainBody');
+            const popup = document.getElementById('timesUpPopup');
+
+            if (!globalState.activeTimer) {
+                if(display) {
+                    display.innerText = "00:00";
+                    display.className = "text-[18vw] md:text-[18rem] font-bold tracking-tighter leading-none timer-text text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.2)] my-auto text-center select-none z-10 whitespace-nowrap max-w-full";
+                }
+                if(ctrlDisplay) {
+                    ctrlDisplay.innerText = "00:00";
+                    ctrlDisplay.className = "text-7xl sm:text-9xl font-black font-mono tracking-tighter text-gray-600 mb-8 select-none";
+                }
+                if(opDisplay) opDisplay.innerText = "00:00";
+                if(body && myRole === 'viewer') body.className = "bg-black text-white min-h-screen w-full flex flex-col justify-between p-4 overflow-hidden";
+                if(popup) popup.classList.add('hidden');
+
+                if (document.pictureInPictureElement) renderPipCanvasFrame();
+                return;
+            }
+
+            let diff;
+            if (globalState.activeTimer.isPaused) {
+                diff = globalState.activeTimer.remainingMs;
+            } else {
+                diff = globalState.activeTimer.endTime - Date.now();
+            }
+
+            let isOvertime = diff <= 0;
+            if (isOvertime) diff = Math.abs(diff);
+
+            const mins = Math.floor(diff / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            const timeString = `${isOvertime ? '-' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+            if(display) display.innerText = timeString;
+            if(opDisplay) opDisplay.innerText = timeString;
+            if(ctrlDisplay) {
+                ctrlDisplay.innerText = timeString;
+                if (globalState.activeTimer.isPaused) {
+                    ctrlDisplay.className = "text-7xl sm:text-9xl font-black font-mono tracking-tighter text-yellow-500 mb-8 drop-shadow-[0_0_20px_rgba(234,179,8,0.3)] animate-pulse select-none";
+                } else {
+                    ctrlDisplay.className = "text-7xl sm:text-9xl font-black font-mono tracking-tighter text-white mb-8 drop-shadow-[0_0_20px_rgba(255,255,255,0.1)] select-none";
+                }
+            }
+
+            if (myRole === 'viewer') {
+                if (globalState.activeTimer.isPaused) {
+                    if (body) body.className = "bg-black text-white min-h-screen w-full flex flex-col justify-between p-4 overflow-hidden";
+                    if (display) display.className = "text-[18vw] md:text-[18rem] font-bold tracking-tighter leading-none timer-text text-yellow-500 my-auto text-center select-none z-10 whitespace-nowrap max-w-full drop-shadow-[0_0_20px_rgba(234,179,8,0.3)]";
+                    if (popup) popup.classList.add('hidden');
+                } else if (isOvertime) {
+                    if (body) body.className = "bg-alert-flash text-white min-h-screen w-full flex flex-col justify-between p-4 overflow-hidden";
+                    if (display) display.className = "text-[18vw] md:text-[18rem] font-bold tracking-tighter leading-none timer-text text-alert-flash drop-shadow-[0_0_80px_rgba(239,68,68,1)] my-auto text-center select-none z-10 whitespace-nowrap max-w-full";
+                    if (popup) popup.classList.remove('hidden');
+                } else {
+                    if (body) body.className = "bg-black text-white min-h-screen w-full flex flex-col justify-between p-4 overflow-hidden";
+                    if (popup) popup.classList.add('hidden');
+
+                    if (display) {
+                        if (mins < 1) {
+                            display.className = "text-[18vw] md:text-[18rem] font-bold timer-text text-red-500 animate-pulse drop-shadow-[0_0_75px_rgba(239,68,68,1)] my-auto text-center select-none z-10 whitespace-nowrap max-w-full";
+                        } else if (mins < 3) {
+                            display.className = "text-[18vw] md:text-[18rem] font-bold timer-text text-orange-400 drop-shadow-[0_0_55px_rgba(251,146,60,0.85)] my-auto text-center select-none z-10 whitespace-nowrap max-w-full";
+                        } else if (mins < 5) {
+                            display.className = "text-[18vw] md:text-[18rem] font-bold timer-text text-yellow-400 drop-shadow-[0_0_40px_rgba(250,204,21,0.7)] my-auto text-center select-none z-10 whitespace-nowrap max-w-full";
+                        } else {
+                            display.className = "text-[18vw] md:text-[18rem] font-bold timer-text text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.2)] my-auto text-center select-none z-10 whitespace-nowrap max-w-full";
+                        }
+                    }
+                }
+            }
+
+            if (document.pictureInPictureElement) renderPipCanvasFrame();
+        }
+
+        function showPrompterMessage(text) {
+            const box = document.getElementById('messageBox');
+            if (!box) return;
+            box.innerText = text;
+            box.classList.remove('hidden');
+            clearTimeout(window.msgTimeout);
+            window.msgTimeout = setTimeout(() => box.classList.add('hidden'), 8000);
+        }
+
+        // --- EXCEL PARSER ---
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            showToast('Processing file...', 'info', 2000);
+            const fileName = file.name.toLowerCase();
+
+            if (fileName.endsWith('.pptx')) {
+                parsePPTXFile(file);
+            } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.csv')) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    try {
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = XLSX.read(data, {type: 'array', cellDates: true, cellNF: false, cellText:false});
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, {header: 1, raw: false, dateNF: "hh:mm"});
+                        const added = parseExcelToAgenda(jsonData);
+                        if (added > 0) showToast(`Imported ${added} agenda rows from ${file.name}`, 'success');
+                        else showToast('No agenda rows found in that file.', 'warn');
+                    } catch (err) {
+                        console.error("Spreadsheet import failed:", err);
+                        showToast('Could not read that spreadsheet file.', 'error');
+                    }
+                };
+                reader.onerror = () => showToast('Could not read that file.', 'error');
+                reader.readAsArrayBuffer(file);
+            } else {
+                showToast('Unsupported file type. Use .xlsx, .csv or .pptx', 'error');
+            }
+            e.target.value = '';
+        }
+
+        async function parsePPTXFile(file) {
+            try {
+                const zip = await JSZip.loadAsync(file);
+                let slideNotes = [];
+                let notesFiles = Object.keys(zip.files).filter(f => f.startsWith('ppt/notesSlides/notesSlide') && f.endsWith('.xml'));
+
+                notesFiles.sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]));
+
+                for (let fileName of notesFiles) {
+                    let xmlText = await zip.files[fileName].async("text");
+                    let parser = new DOMParser();
+                    let xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                    let textNodes = xmlDoc.getElementsByTagName("a:t");
+                    let noteText = "";
+                    for (let node of textNodes) {
+                        let txt = node.textContent.trim();
+                        if (txt && !/^\d+$/.test(txt)) noteText += txt + " ";
+                    }
+                    slideNotes.push(noteText.trim() || "No notes for this slide.");
+                }
+
+                const combinedNotes = slideNotes.join("\n---\n");
+                document.getElementById('liveNotesInput').value = combinedNotes;
+                currentSlideIndex = 0;
+                syncPrompterNotes(true);
+
+                showToast(`Extracted speaker notes from ${slideNotes.length} PowerPoint slides!`, 'success');
+            } catch (err) {
+                console.error("PPTX parse failed:", err);
+                showToast("Error reading PowerPoint file. Make sure it's a valid .pptx file.", 'error');
+            }
+        }
+
+        function parseExcelToAgenda(rows) {
+            if(rows.length < 2) return 0;
+            let newAgenda = [];
+            for(let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if(row.length > 0 && row[0]) {
+                    let tStr = "08:30";
+                    if (typeof row[0] === 'string') {
+                        const m = row[0].match(/\b([01]?\d|2[0-3])[:.][0-5]\d\b/);
+                        if (m) tStr = m[0].replace('.', ':');
+                    }
+                    newAgenda.push({
+                        time: tStr,
+                        duration: parseDurationStr(row[1]),
+                        topic: row[2] || "Session",
+                        speakers: row[3] || "-",
+                        status: "pending"
+                    });
+                }
+            }
+            if (newAgenda.length > 0) {
+                globalState.agenda = newAgenda;
+                document.getElementById('eventStartTime').value = newAgenda[0].time;
+                recalculateCascadingTimes(0);
+            }
+            return newAgenda.length;
+        }
+
+        // --- INIT ---
+        function startView(view, codeOverride = null) {
+            if (view === 'prompter') {
+                const codeInput = document.getElementById('joinRoomInput').value;
+                const code = codeOverride || sanitizeRoomCode(codeInput);
+                if (!code) {
+                    showToast('Please enter a Sync Code first.', 'warn');
+                    document.getElementById('joinRoomInput').focus();
+                    return;
+                }
+            }
+
+            document.getElementById('menuView').classList.add('hidden');
+            document.getElementById('operatorView').classList.add('hidden');
+            document.getElementById('prompterView').classList.add('hidden');
+            document.getElementById(view + 'View').classList.remove('hidden');
+            document.getElementById(view + 'View').classList.add('flex');
+
+            if(view === 'operator') {
+                const codeInput = document.getElementById('createRoomInput').value;
+                myRoomCode = codeOverride || sanitizeRoomCode(codeInput) || Math.floor(100000 + Math.random() * 900000).toString();
+                document.getElementById('createRoomInput').value = myRoomCode;
+                initFirebaseRoom(myRoomCode, 'operator');
+            } else if(view === 'prompter') {
+                const codeInput = document.getElementById('joinRoomInput').value;
+                myRoomCode = codeOverride || sanitizeRoomCode(codeInput);
+                document.getElementById('joinRoomInput').value = myRoomCode;
+                document.getElementById('mainBody').className = "bg-black text-white font-sans min-h-screen overflow-hidden";
+                applyOutputViewChrome();
+                initFirebaseRoom(myRoomCode, 'viewer');
+            }
+        }
+
+        // Applies the one-time, non-synced chrome for this browser tab's output type.
+        function applyOutputViewChrome() {
+            document.documentElement.classList.toggle('obs-mode', localOutputView === 'obs');
+            const badge = document.getElementById('speakerModeBadge');
+            if (badge) badge.classList.toggle('hidden', localOutputView !== 'speaker');
+        }
+
+        function joinRoomFromInput() {
+            startView('prompter');
+        }
+
+        function clearLocalHistory() {
+            if (confirm("Clear browser storage cache?")) {
+                localStorage.clear();
+                showToast('Local cache cleared.', 'success');
+            }
+        }
+
+        function goBack() {
+            if (myPresenceRef) myPresenceRef.remove();
+            if (watchdogTimer) clearInterval(watchdogTimer);
+
+            try {
+                window.history.replaceState(null, '', window.location.pathname);
+            } catch (e) {}
+
+            localOutputView = null;
+            document.documentElement.classList.remove('obs-mode');
+
+            document.getElementById('operatorView').classList.add('hidden');
+            document.getElementById('prompterView').classList.add('hidden');
+            document.getElementById('menuView').classList.remove('hidden');
+            document.getElementById('mainBody').className = "bg-gray-950 text-white font-sans min-h-screen overflow-x-hidden";
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            attachResizerDrag(document.getElementById('resizerH'), 'leftWidthPct');
+            attachResizerDrag(document.getElementById('resizerV'), 'topRightHeightPct');
+
+            const dropZone = document.getElementById('dropZone');
+            if (dropZone) {
+                ['dragenter', 'dragover'].forEach(eName => dropZone.addEventListener(eName, e => { e.preventDefault(); dropZone.classList.add('dropzone-active'); }));
+                ['dragleave', 'drop'].forEach(eName => dropZone.addEventListener(eName, e => { e.preventDefault(); dropZone.classList.remove('dropzone-active'); }));
+                dropZone.addEventListener('drop', e => handleFileUpload({ target: { files: e.dataTransfer.files } }));
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomParam = urlParams.get('room');
+            const roleParam = urlParams.get('role');
+            const viewParam = urlParams.get('view');
+            if (viewParam === 'speaker' || viewParam === 'obs') localOutputView = viewParam;
+
+            if (window.location.hash === '#prompter' && !roleParam) {
+                if (roomParam) document.getElementById('joinRoomInput').value = sanitizeRoomCode(roomParam);
+                startView('prompter');
+                return;
+            }
+
+            if (roomParam) {
+                if (roleParam === 'operator') {
+                    document.getElementById('createRoomInput').value = sanitizeRoomCode(roomParam);
+                    startView('operator', roomParam);
+                } else {
+                    document.getElementById('joinRoomInput').value = sanitizeRoomCode(roomParam);
+                    startView('prompter', roomParam);
+                }
+            }
+        });
+
+        setInterval(updatePrompterDisplay, 250);
+    </script>
+</body>
+</html>
